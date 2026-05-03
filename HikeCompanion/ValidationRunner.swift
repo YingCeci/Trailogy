@@ -64,12 +64,18 @@ final class ValidationRunner: ObservableObject {
     }
 
     private func loadSync() throws {
+        // Files live in the `Models/` blue-folder reference (xcodegen
+        // `type: folder`), not at the bundle root. `Bundle.url(forResource:
+        // withExtension:)` only searches the root unless you pass
+        // `subdirectory:`.
         guard let modelURL = Bundle.main.url(forResource: "kokoro-v1_0",
-                                             withExtension: "safetensors") else {
+                                             withExtension: "safetensors",
+                                             subdirectory: "Models") else {
             throw RunnerError.modelMissing
         }
         guard let voicesURL = Bundle.main.url(forResource: "voices",
-                                              withExtension: "npz") else {
+                                              withExtension: "npz",
+                                              subdirectory: "Models") else {
             throw RunnerError.voicesMissing
         }
 
