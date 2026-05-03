@@ -22,10 +22,10 @@ struct ContentView: View {
         NavigationStack {
             Form {
                 Section("Status") {
-                    Text("Gemma: \(gemma.status)")
+                    Text("Kokoro: \(tts.status)")
                         .font(.callout.monospaced())
                         .foregroundStyle(.secondary)
-                    Text("Kokoro: \(tts.status)")
+                    Text("Gemma: \(gemma.status)")
                         .font(.callout.monospaced())
                         .foregroundStyle(.secondary)
                 }
@@ -63,7 +63,10 @@ struct ContentView: View {
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!gemma.isReady || !tts.isReady || isAsking || question.isEmpty)
+                    // Gemma is lazy-loaded on first tap; only require Kokoro
+                    // to be ready (so we can speak the response) and that we
+                    // have a question and aren't already running.
+                    .disabled(!tts.isReady || isAsking || question.isEmpty)
                 }
 
                 if !streamingText.isEmpty {
@@ -120,28 +123,33 @@ struct ContentView: View {
         isAsking = true
 
         Task {
-            guard let stream = gemma.streamResponse(to: prompt) else {
-                streamingText = "[error: Gemma session not ready]"
-                isAsking = false
-                return
-            }
             do {
+                // 1. Load Gemma into memory (lazy — first ask, or after
+                //    a previous unload). UI shows "Loading Gemma 4…".
+                try await gemma.loadIfNeeded()
+
+                // 2. Stream the response.
+                guard let stream = gemma.streamResponse(to: prompt) else {
+                    streamingText = "[error: Gemma session not ready]"
+                    isAsking = false
+                    return
+                }
                 var fullText = ""
                 for try await chunk in stream {
                     fullText += chunk
                     streamingText = fullText
                 }
-                isAsking = false
-                // Phase 1: speak the full response in one go via the existing
-                // chunked-TTS pipeline. Phase 1.5 will pipe at sentence
-                // granularity so audio starts before Gemma finishes.
+
+                // 3. Free Gemma's ~3.5 GB before Kokoro starts TTS — this
+                //    is the critical step that was OOMing the Gemma → Kokoro
+                //    hand-off. Next Ask will reload (~10–30 s).
+                gemma.unload()
+
+                // 4. Speak the response.
                 if !fullText.isEmpty {
-                    // Force MLX to release Gemma's working buffers (KV cache,
-                    // intermediate activations) before Kokoro starts. Without
-                    // this, the Gemma → Kokoro hand-off was OOM'ing iOS.
-                    MLX.Memory.clearCache()
                     tts.synthesize(text: fullText, speed: Float(speed))
                 }
+                isAsking = false
             } catch {
                 streamingText += "\n\n[stream error: \(error.localizedDescription)]"
                 isAsking = false

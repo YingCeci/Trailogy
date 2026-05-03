@@ -1,14 +1,25 @@
 // GemmaService.swift
 // Wraps mlx-swift-lm's `ChatSession` over Gemma 4 E2B (INT4 quantized,
-// ~3.5 GB). Loads from a bundled directory at `Bundle/Models/Gemma/`,
-// exposes streaming + batch response APIs.
+// ~3.5 GB).
 //
-// Model files come from `mlx-community/gemma-4-e2b-it-4bit` (or unsloth's
-// UD-MLX-4bit fallback) via `scripts/fetch-gemma.sh`.
+// LIFECYCLE: lazy load on first Ask, unload after generation completes.
+// Reasons:
+//   • At app launch we don't want Gemma's 3.5 GB resident — Kokoro alone
+//     (700 MB) is enough to be useful for TTS-only flows.
+//   • Loading Gemma in parallel with Kokoro at app start caused Kokoro's
+//     own MLX inference to crash on first Speak Only tap (concurrent MLX
+//     setup contention).
+//   • Holding Gemma's weights resident while Kokoro starts TTS spiked
+//     resident memory enough for iOS to jetsam the app.
+//
+// Trade-off: each Ask pays Gemma load time (~10–30 s on iPhone Pro) again
+// — visible "Loading Gemma…" status. We accept this in exchange for
+// bounded memory at the Gemma → Kokoro hand-off.
 
 import Foundation
 import HuggingFace
 import Hub
+import MLX
 import MLXHuggingFace
 import MLXLLM
 import MLXLMCommon
@@ -19,17 +30,11 @@ final class GemmaService: ObservableObject {
 
     // MARK: - Published state
 
-    @Published private(set) var status: String = "Idle"
-    @Published private(set) var isReady: Bool = false
-    @Published private(set) var loadProgress: Double = 0
+    @Published private(set) var status: String = "Idle (Gemma loads on first Ask)"
+    @Published private(set) var isLoaded: Bool = false
 
     // MARK: - Internals
 
-    /// We hold the loaded model container for reuse across turns, but
-    /// create a *fresh* `ChatSession` per question so KV cache doesn't
-    /// accumulate. Multi-turn coherence is sacrificed in exchange for
-    /// bounded resident memory — important on iPhone where Gemma + Kokoro
-    /// already eat ~4 GB resident.
     private var modelContainer: ModelContainer?
 
     private let systemInstructions = """
@@ -41,46 +46,44 @@ final class GemmaService: ObservableObject {
 
     // MARK: - Lifecycle
 
-    init() {
-        Task { await loadAsync() }
-    }
+    /// Load the model into memory. Idempotent — no-op if already loaded.
+    /// Throws if the bundled model files are missing.
+    func loadIfNeeded() async throws {
+        guard modelContainer == nil else { return }
 
-    private func loadAsync() async {
-        // Models dir is included via xcodegen `type: folder` (no
-        // `buildPhase: resources`) which preserves the directory tree.
-        // Gemma's safetensors lives in its own subdirectory, isolated
-        // from Kokoro's safetensors at Bundle/Models/kokoro-v1_0.safetensors
-        // — important because mlx-swift-lm globs `*.safetensors` from the
-        // directory we hand it, and we don't want it to load Kokoro's
-        // weights into the Gemma model graph.
         let modelDir = Bundle.main.bundleURL
             .appendingPathComponent("Models")
             .appendingPathComponent("Gemma")
         guard FileManager.default.fileExists(
             atPath: modelDir.appendingPathComponent("config.json").path
         ) else {
-            status = "Gemma model missing — run scripts/fetch-gemma.sh, then bash scripts/generate-project.sh, then rebuild."
-            return
+            throw GemmaError.modelMissing
         }
 
         status = "Loading Gemma 4 (10–30 s)…"
-        do {
-            modelContainer = try await loadModelContainer(
-                from: modelDir,
-                using: #huggingFaceTokenizerLoader()
-            )
-            isReady = true
-            status = "Gemma 4 ready"
-        } catch {
-            status = "Load error: \(error.localizedDescription)"
-        }
+        modelContainer = try await loadModelContainer(
+            from: modelDir,
+            using: #huggingFaceTokenizerLoader()
+        )
+        isLoaded = true
+        status = "Gemma 4 loaded"
+    }
+
+    /// Drop the model from memory and force MLX to release cached buffers.
+    /// Call this between turns so Kokoro can run TTS without contending
+    /// for ~3.5 GB of Gemma weights.
+    func unload() {
+        modelContainer = nil
+        isLoaded = false
+        Memory.clearCache()
+        status = "Gemma unloaded (will reload on next Ask)"
     }
 
     // MARK: - Inference
 
-    /// Stream Gemma's response token-by-token. Returns nil if model not ready.
-    /// Builds a *fresh* `ChatSession` per call so KV cache state doesn't
-    /// accumulate across questions.
+    /// Stream Gemma's response token-by-token. Returns nil if not loaded;
+    /// caller is expected to have run `loadIfNeeded()` first. Builds a
+    /// fresh `ChatSession` per call so KV cache state doesn't accumulate.
     func streamResponse(to prompt: String) -> AsyncThrowingStream<String, Error>? {
         guard let container = modelContainer else { return nil }
         let session = ChatSession(
@@ -89,5 +92,16 @@ final class GemmaService: ObservableObject {
             generateParameters: GenerateParameters(temperature: 0.7)
         )
         return session.streamResponse(to: prompt)
+    }
+}
+
+enum GemmaError: LocalizedError {
+    case modelMissing
+
+    var errorDescription: String? {
+        switch self {
+        case .modelMissing:
+            return "Gemma model missing — run scripts/fetch-gemma.sh, then bash scripts/generate-project.sh, then rebuild."
+        }
     }
 }
