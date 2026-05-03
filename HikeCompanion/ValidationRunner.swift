@@ -53,7 +53,7 @@ final class ValidationRunner: ObservableObject {
                 try self.loadSync()
                 DispatchQueue.main.async {
                     self.isReady = true
-                    self.status = "Ready. Type something and tap Synthesize."
+                    self.status = "Ready"
                 }
             } catch {
                 DispatchQueue.main.async {
