@@ -246,20 +246,32 @@ final class ValidationRunner: ObservableObject {
 
                 self.captionTokens = allCaptionTokens
                 self.play(audio: combined, sampleRate: sampleRate)
-
-                // Audio buffer is now queued on AVAudioPlayerNode (which
-                // owns its own copy in AVFoundation memory). We can drop
-                // the Kokoro engine — playback continues independently.
-                // Saves ~310 MB MLX active until the next synth.
-                DispatchQueue.main.async {
-                    self.unloadModel()
-                }
+                // End of phase 1. Local `tts` binding will be released
+                // when this closure exits. Phase 2 (below) is queued on
+                // the same SERIAL workQueue and runs only after this
+                // closure has fully exited — by then the only remaining
+                // strong ref to KokoroTTS is `self.tts`, which phase 2
+                // will nil out. Critical for MLX cache to actually drop
+                // the model weights instead of holding them as cached
+                // buffers we never clear.
             } catch {
                 DispatchQueue.main.async {
                     self.status = "Synth error: \(error.localizedDescription)"
                     self.isRunning = false
                 }
             }
+        }
+
+        // Phase 2: drop the KokoroTTS engine and clear MLX's cache.
+        // This block runs AFTER phase 1's closure has exited (serial
+        // queue), so the local strong reference inside that closure is
+        // already gone. Setting `self.tts = nil` now is the last drop;
+        // ARC deinits KokoroTTS, MLX returns its buffers into the cache
+        // pool, and `Memory.clearCache()` immediately releases them.
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            self.tts = nil
+            Memory.clearCache()
         }
     }
 
