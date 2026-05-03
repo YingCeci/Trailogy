@@ -142,31 +142,55 @@ final class ValidationRunner: ObservableObject {
                         self.status = "Synthesising chunk \(i+1)/\(chunks.count)…"
                     }
 
+                    // Kokoro's duration predictor produces unstable output for
+                    // the first few phonemes when input is more than ~60 chars
+                    // ("Listen carefully to" → high-pitch beep, then settles).
+                    // Workaround: prepend a throwaway warmup ("Mm. "), then
+                    // trim the warmup audio + token timestamps before mixing
+                    // into the final output.
+                    let textForSynth = Self.warmupPrefix + chunk
+
                     let (audio, mtokens) = try tts.generateAudio(
                         voice: voiceArray,
                         language: language,
-                        text: chunk,
+                        text: textForSynth,
                         speed: speed
                     )
 
-                    // Convert per-chunk MTokens to global-time CaptionTokens
+                    // Use the first content token's start time as the trim
+                    // boundary. Falls back to a fixed 0.35 s if we can't
+                    // identify the boundary from token data.
+                    let firstContentWord = Self.firstWord(of: chunk)
+                    let trimSec = Self.warmupTrimSeconds(
+                        tokens: mtokens,
+                        firstContentWord: firstContentWord,
+                        fallback: Self.fallbackTrimSec
+                    )
+                    let trimSamples = min(audio.count, Int(Double(sampleRate) * trimSec))
+                    let trimmedAudio = Array(audio.dropFirst(trimSamples))
+
+                    // Token timestamps: drop tokens that end before the trim,
+                    // shift the rest back by trimSec.
                     if let toks = mtokens {
                         for t in toks {
                             guard let s = t.start_ts, let e = t.end_ts else { continue }
+                            let adjustedEnd = e - trimSec
+                            guard adjustedEnd > 0 else { continue }   // warmup token
+                            let adjustedStart = max(0, s - trimSec)
                             allCaptionTokens.append(CaptionToken(
                                 text: t.text,
                                 whitespace: t.whitespace,
-                                startTs: chunkOffsetSec + s,
-                                endTs: chunkOffsetSec + e
+                                startTs: chunkOffsetSec + adjustedStart,
+                                endTs: chunkOffsetSec + adjustedEnd
                             ))
                         }
                     }
 
-                    let chunkAudioDur = Double(audio.count) / sampleRate
-                    combined.append(contentsOf: audio)
+                    let chunkAudioDur = Double(trimmedAudio.count) / sampleRate
+                    combined.append(contentsOf: trimmedAudio)
 
-                    // 50 ms silence between chunks (already used for click suppression);
-                    // also bump the offset so subsequent token timestamps stay correct.
+                    // 50 ms silence between chunks (click suppression);
+                    // bump the offset so subsequent token timestamps stay correct.
                     if i < chunks.count - 1 {
                         let silenceFrames = Int(sampleRate * 0.05)
                         combined.append(contentsOf: [Float](repeating: 0, count: silenceFrames))
@@ -300,10 +324,60 @@ final class ValidationRunner: ObservableObject {
 
     // MARK: - Text chunking (avoid 510-token cap)
 
+    // MARK: - Warmup prefix to neutralise start-of-utterance glitch
+
+    /// Prepended to every chunk before synthesis. Audio for this is trimmed
+    /// before mixing. Short, low-information sound that gives Kokoro's
+    /// duration predictor room to settle without consuming user content.
+    private static let warmupPrefix = "Mm. "
+
+    /// Used if we can't identify the warmup→content boundary from the
+    /// returned token timestamps. Calibrated for "Mm. " at 1.0× speed —
+    /// slightly conservative to avoid clipping the first content phoneme.
+    private static let fallbackTrimSec: Double = 0.35
+
+    /// Returns the first word of `text`, stripped of leading/trailing punctuation.
+    /// Used to locate the first content token in Misaki's token output.
+    private static func firstWord(of text: String) -> String {
+        let firstChunk = text.split(separator: " ", maxSplits: 1).first.map(String.init) ?? ""
+        return firstChunk.trimmingCharacters(in: .punctuationCharacters)
+    }
+
+    /// Find where the warmup ends and content begins in the returned tokens.
+    /// We look for the first token matching the chunk's first content word
+    /// (case-sensitive — Misaki preserves source casing). If found, trim up
+    /// to that token's start_ts. Otherwise fall back to the fixed estimate.
+    private static func warmupTrimSeconds(
+        tokens: [MToken]?,
+        firstContentWord: String,
+        fallback: Double
+    ) -> Double {
+        guard let toks = tokens, !firstContentWord.isEmpty else {
+            return fallback
+        }
+        if let match = toks.first(where: { $0.text == firstContentWord }),
+           let start = match.start_ts {
+            return start
+        }
+        // Case-insensitive retry — defensive against Misaki output quirks.
+        let lower = firstContentWord.lowercased()
+        if let match = toks.first(where: { $0.text.lowercased() == lower }),
+           let start = match.start_ts {
+            return start
+        }
+        return fallback
+    }
+
+    // MARK: - Text chunking (avoid 510-token cap)
+
     private static func splitForSynthesis(_ text: String) -> [String] {
         let primary = splitOnDelimiters(text, delimiters: [".", "!", "?"])
         var safe: [String] = []
-        let maxChars = 250
+        // Misaki produces ~1.5–2 tokens per word, ~6 chars/word average →
+        // 510 token cap ≈ ~1800 chars. 450 is well under that and lets typical
+        // paragraphs synthesize as a single call (better prosody, fewer
+        // chunk-boundary artifacts).
+        let maxChars = 450
         for s in primary {
             if s.count <= maxChars {
                 safe.append(s)
