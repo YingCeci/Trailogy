@@ -27,7 +27,16 @@ final class ValidationRunner: ObservableObject {
 
     // MARK: - Internals
 
+    /// KokoroTTS instance. Lazy-loaded on first synth (and re-loaded on
+    /// each subsequent synth) so the ~310 MB of MLX-resident model
+    /// weights aren't sitting around when we're not actively speaking.
+    /// Kokoro is non-autoregressive (single forward pass per chunk),
+    /// so there's no rolling state to preserve between synths.
     private var tts: KokoroTTS?
+    /// Path to the safetensors file in the bundle. Kept so we can
+    /// re-init `KokoroTTS` after each unload without a Bundle lookup.
+    private var modelURL: URL?
+    /// Voice embeddings from voices.npz. Tiny (~14 MB), kept resident.
     private var voices: [String: MLXArray] = [:]
     private var audioEngine: AVAudioEngine?
     private var playerNode: AVAudioPlayerNode?
@@ -78,11 +87,10 @@ final class ValidationRunner: ObservableObject {
                                               subdirectory: "Models") else {
             throw RunnerError.voicesMissing
         }
+        self.modelURL = modelURL
 
-        DispatchQueue.main.async { self.status = "Initialising KokoroTTS (~10–30 s)…" }
-        let engine = KokoroTTS(modelPath: modelURL)
-        self.tts = engine
-
+        // Voices are tiny (~14 MB) and we need their names for the
+        // picker even when Kokoro isn't loaded — keep them resident.
         DispatchQueue.main.async { self.status = "Loading voices…" }
         let loadedVoices = NpyzReader.read(fileFromPath: voicesURL) ?? [:]
         self.voices = loadedVoices
@@ -95,7 +103,8 @@ final class ValidationRunner: ObservableObject {
             self.selectedVoice = names.first(where: { $0 == "af_bella" }) ?? names.first ?? ""
         }
 
-        // Audio engine for playback.
+        // Audio engine for playback (keep alive across synths — owns the
+        // PCM buffer queue, independent of the Kokoro model).
         let aEngine = AVAudioEngine()
         let player = AVAudioPlayerNode()
         aEngine.attach(player)
@@ -109,12 +118,31 @@ final class ValidationRunner: ObservableObject {
         } catch {
             // Non-fatal.
         }
+
+        // KokoroTTS itself is lazy-loaded on first `synthesize`; see
+        // `ensureModelLoaded()`.
+    }
+
+    /// Initialise (or re-initialise) the KokoroTTS engine. Idempotent
+    /// — no-op if already loaded. Called at the start of each synth.
+    private func ensureModelLoaded() throws {
+        guard tts == nil else { return }
+        guard let modelURL else { throw RunnerError.modelMissing }
+        tts = KokoroTTS(modelPath: modelURL)
+    }
+
+    /// Drop the KokoroTTS engine reference + clear MLX cache. Audio
+    /// already queued on `AVAudioPlayerNode` plays independently — that
+    /// buffer lives in AVFoundation memory, not MLX.
+    private func unloadModel() {
+        tts = nil
+        Memory.clearCache()
     }
 
     // MARK: - Synthesize
 
     func synthesize(text: String, speed: Float = 1.0) {
-        guard isReady, !isRunning, let tts = tts else { return }
+        guard isReady, !isRunning else { return }
         let voiceKey = selectedVoice
         guard let voiceArray = voices["\(voiceKey).npy"] else {
             DispatchQueue.main.async {
@@ -125,7 +153,7 @@ final class ValidationRunner: ObservableObject {
 
         DispatchQueue.main.async {
             self.isRunning = true
-            self.status = "Synthesising…"
+            self.status = "Loading Kokoro…"
             self.currentCaption = ""
             self.stopCaptionTimer()
         }
@@ -133,6 +161,12 @@ final class ValidationRunner: ObservableObject {
         workQueue.async { [weak self] in
             guard let self else { return }
             do {
+                // Lazy-load Kokoro for this synth. Adds ~1–2 s on the
+                // first chunk; reused across chunks within the same call.
+                try self.ensureModelLoaded()
+                guard let tts = self.tts else { throw RunnerError.modelMissing }
+
+                DispatchQueue.main.async { self.status = "Synthesising…" }
                 let language: Language = (voiceKey.first == "a") ? .enUS : .enGB
                 let chunks = Self.splitForSynthesis(text)
 
@@ -212,6 +246,14 @@ final class ValidationRunner: ObservableObject {
 
                 self.captionTokens = allCaptionTokens
                 self.play(audio: combined, sampleRate: sampleRate)
+
+                // Audio buffer is now queued on AVAudioPlayerNode (which
+                // owns its own copy in AVFoundation memory). We can drop
+                // the Kokoro engine — playback continues independently.
+                // Saves ~310 MB MLX active until the next synth.
+                DispatchQueue.main.async {
+                    self.unloadModel()
+                }
             } catch {
                 DispatchQueue.main.async {
                     self.status = "Synth error: \(error.localizedDescription)"
