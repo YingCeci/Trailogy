@@ -62,7 +62,7 @@ final class ValidationRunner: ObservableObject {
                 try self.loadSync()
                 DispatchQueue.main.async {
                     self.isReady = true
-                    self.status = "Ready"
+                    self.status = "Idle"
                 }
             } catch {
                 DispatchQueue.main.async {
@@ -272,6 +272,12 @@ final class ValidationRunner: ObservableObject {
             guard let self else { return }
             self.tts = nil
             Memory.clearCache()
+            DispatchQueue.main.async {
+                // Status reflects truth: model is unloaded again.
+                // The just-completed synth's RTF is preserved in
+                // `lastResult` for the "Last TTS run" section.
+                self.status = "Idle"
+            }
         }
     }
 
