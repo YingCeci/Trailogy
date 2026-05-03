@@ -41,9 +41,20 @@ final class GemmaService: ObservableObject {
     }
 
     private func loadAsync() async {
-        let modelDir = Bundle.main.bundleURL.appendingPathComponent("Models/Gemma")
-        guard FileManager.default.fileExists(atPath: modelDir.path) else {
-            status = "Gemma model missing — run scripts/fetch-gemma.sh, regenerate the project, and rebuild."
+        // xcodegen's `type: folder` + `buildPhase: resources` flattens the
+        // contents of Resources/Models/ into the .app bundle ROOT — files
+        // end up alongside HikeCompanion.app/Info.plist etc., not under a
+        // Models/Gemma/ subdirectory. mlx-swift-lm's loadModelContainer(from:)
+        // needs a directory containing config.json + model.safetensors +
+        // tokenizer.json, so we point it at the bundle root.
+        //
+        // Kokoro's safetensors and voices.npz live at the same root with
+        // different names — they don't collide with mlx-swift-lm's loader.
+        let modelDir = Bundle.main.bundleURL
+        guard FileManager.default.fileExists(
+            atPath: modelDir.appendingPathComponent("config.json").path
+        ) else {
+            status = "Gemma model missing — run scripts/fetch-gemma.sh, then bash scripts/generate-project.sh, then rebuild."
             return
         }
 
