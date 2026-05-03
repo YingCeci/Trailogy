@@ -1,38 +1,43 @@
 // ContentView.swift
-// Validator UI for mlalma/kokoro-ios. Text input, voice picker, speed
-// slider, run button, results readout, live caption during playback,
-// replay + share.
+// Phase 1 flow: type a question → Gemma 4 streams the response →
+// finished response goes through Kokoro → spoken aloud.
 
 import SwiftUI
 import UIKit
 
 struct ContentView: View {
-    @StateObject private var runner = ValidationRunner()
-    @State private var inputText: String = "The morning mist rose from the valley as we climbed the ridge."
+    @StateObject private var gemma = GemmaService()
+    @StateObject private var tts = ValidationRunner()
+
+    @State private var question: String = "What's a hemlock tree?"
+    @State private var streamingText: String = ""
+    @State private var isAsking: Bool = false
     @State private var speed: Double = 1.0
-    @State private var showShareSheet = false
-    @State private var shareItems: [Any] = []
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Status") {
-                    Text(runner.status)
+                    Text("Gemma: \(gemma.status)")
                         .font(.callout.monospaced())
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Kokoro: \(tts.status)")
+                        .font(.callout.monospaced())
+                        .foregroundStyle(.secondary)
                 }
 
-                Section("Input") {
-                    TextField("Text to synthesize", text: $inputText, axis: .vertical)
-                        .lineLimit(2...6)
+                Section("Ask Gemma") {
+                    TextField("Question", text: $question, axis: .vertical)
+                        .lineLimit(1...4)
                         .textFieldStyle(.roundedBorder)
-                    Picker("Voice", selection: $runner.selectedVoice) {
-                        ForEach(runner.voiceNames, id: \.self) { name in
+
+                    Picker("Voice", selection: $tts.selectedVoice) {
+                        ForEach(tts.voiceNames, id: \.self) { name in
                             Text(name).tag(name)
                         }
                     }
-                    .disabled(runner.voiceNames.isEmpty)
+                    .disabled(tts.voiceNames.isEmpty)
+
                     HStack {
                         Text("Speed")
                         Slider(value: $speed, in: 0.5...2.0, step: 0.05)
@@ -40,84 +45,87 @@ struct ContentView: View {
                             .font(.callout.monospaced())
                             .frame(width: 60, alignment: .trailing)
                     }
-                }
 
-                Section {
                     Button {
-                        runner.synthesize(text: inputText, speed: Float(speed))
+                        ask()
                     } label: {
                         HStack {
-                            if runner.isRunning {
+                            if isAsking {
                                 ProgressView().padding(.trailing, 6)
                             }
-                            Text(runner.isRunning ? "Synthesising…" : "Synthesize")
+                            Text(isAsking ? "Thinking…" : "Ask")
                                 .fontWeight(.semibold)
                         }
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(!runner.isReady || runner.isRunning || inputText.isEmpty)
+                    .disabled(!gemma.isReady || !tts.isReady || isAsking || question.isEmpty)
                 }
 
-                if !runner.currentCaption.isEmpty {
-                    Section("Spoken so far") {
-                        Text(runner.currentCaption)
+                if !streamingText.isEmpty {
+                    Section("Gemma's response") {
+                        Text(streamingText)
                             .font(.body)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .fixedSize(horizontal: false, vertical: true)
-                            .animation(.easeInOut(duration: 0.05), value: runner.currentCaption)
                     }
                 }
 
-                if let r = runner.lastResult {
-                    Section("Last run") {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(r.voice)  ·  \(String(format: "%.2f×", r.speed))")
-                                .font(.subheadline.weight(.semibold))
-                            Text(r.text)
-                                .font(.callout)
-                                .lineLimit(3)
-                                .foregroundStyle(.secondary)
-                            Text(String(format: "RTF %.3f   (%.1f× realtime)",
-                                        r.rtf, r.rtf > 0 ? 1.0 / r.rtf : 0))
-                                .font(.callout.monospaced())
-                            Text(String(format: "wall %.2f s   audio %.2f s   chunks %d",
-                                        r.wallTimeSec, r.audioDurationSec, r.chunkCount))
-                                .font(.caption.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
-                        HStack {
-                            Button("Play again") { runner.playLastAgain() }
-                                .buttonStyle(.bordered)
-                            Spacer()
-                            Button("Share WAV") {
-                                if let url = runner.lastWavURL {
-                                    shareItems = [url]
-                                    showShareSheet = true
-                                }
-                            }
+                if !tts.currentCaption.isEmpty {
+                    Section("Spoken so far") {
+                        Text(tts.currentCaption)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                if let r = tts.lastResult {
+                    Section("Last TTS run") {
+                        Text(String(format: "RTF %.3f   audio %.2f s   %d chunks",
+                                    r.rtf, r.audioDurationSec, r.chunkCount))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        Button("Replay") { tts.playLastAgain() }
                             .buttonStyle(.bordered)
-                            .disabled(runner.lastWavURL == nil)
-                        }
                     }
                 }
             }
             .navigationTitle("HikeCompanion")
-            .sheet(isPresented: $showShareSheet) {
-                ShareSheet(items: shareItems)
+        }
+    }
+
+    private func ask() {
+        let prompt = question
+        streamingText = ""
+        isAsking = true
+
+        Task {
+            guard let stream = gemma.streamResponse(to: prompt) else {
+                streamingText = "[error: Gemma session not ready]"
+                isAsking = false
+                return
+            }
+            do {
+                var fullText = ""
+                for try await chunk in stream {
+                    fullText += chunk
+                    streamingText = fullText
+                }
+                isAsking = false
+                // Phase 1: speak the full response in one go via the existing
+                // chunked-TTS pipeline. Phase 1.5 will pipe at sentence
+                // granularity so audio starts before Gemma finishes.
+                if !fullText.isEmpty {
+                    tts.synthesize(text: fullText, speed: Float(speed))
+                }
+            } catch {
+                streamingText += "\n\n[stream error: \(error.localizedDescription)]"
+                isAsking = false
             }
         }
     }
-}
-
-// MARK: - UIActivityViewController bridge
-
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {

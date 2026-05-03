@@ -8,19 +8,35 @@ options:
   generateEmptyDirectories: true
 
 packages:
-  # NOTE: KokoroSwift 1.0.7–1.0.10 had a Package.swift bug where the source
-  # imports MLXFast but the manifest doesn't declare it as a dependency.
-  # Fixed in 1.0.11 — pin to that or newer.
+  # KokoroSwift VENDORED into external/ — upstream tag 1.0.11 hard-pins
+  # mlx-swift exact: "0.30.2", which conflicts with mlx-swift-lm 3.x's
+  # required MLX 0.31+. Our copy relaxes that pin to a range so both can
+  # coexist on MLX 0.31. See external/kokoro-ios/Package.swift comment.
   KokoroSwift:
-    url: https://github.com/mlalma/kokoro-ios
-    minVersion: "1.0.11"
-    maxVersion: "2.0.0"
-  # We use NpyzReader from MLXUtilsLibrary directly to load voices.npz, so
-  # we need it as a direct dep (transitive-via-KokoroSwift isn't enough
-  # for our target's link step).
+    path: external/kokoro-ios
+  # MLXUtilsLibrary VENDORED — same reason as KokoroSwift, and so the whole
+  # dep graph references a single path-based instance.
   MLXUtilsLibrary:
-    url: https://github.com/mlalma/MLXUtilsLibrary.git
-    minVersion: "0.0.5"
+    path: external/MLXUtilsLibrary
+  # Gemma 4 LLM via MLX. Same MLX runtime as Kokoro = unified memory pool.
+  mlx-swift-lm:
+    url: https://github.com/ml-explore/mlx-swift-lm
+    minVersion: "3.31.3"
+    maxVersion: "4.0.0"
+  # HuggingFace Hub client + tokenizers — used by mlx-swift-lm's
+  # `#huggingFaceTokenizerLoader()` macro to load tokenizer.json from the
+  # bundled model directory.
+  swift-transformers:
+    url: https://github.com/huggingface/swift-transformers
+    minVersion: "1.3.0"
+    maxVersion: "2.0.0"
+  # swift-huggingface provides the `HuggingFace` module used by
+  # mlx-swift-lm's tokenizer-loader macro. Pulled transitively by
+  # swift-transformers/Hub already, but we need it as a direct dep so
+  # we can `import HuggingFace` from our Swift code.
+  swift-huggingface:
+    url: https://github.com/huggingface/swift-huggingface
+    minVersion: "0.8.1"
     maxVersion: "1.0.0"
 
 settings:
@@ -53,6 +69,23 @@ targets:
       - package: MLXUtilsLibrary
         product: MLXUtilsLibrary
         embed: false
+      # Gemma 4 stack via mlx-swift-lm.
+      - package: mlx-swift-lm
+        product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXLMCommon
+      - package: mlx-swift-lm
+        product: MLXHuggingFace
+      # swift-transformers: Tokenizers + Hub.
+      - package: swift-transformers
+        product: Tokenizers
+      - package: swift-transformers
+        product: Hub
+      # swift-huggingface: provides `HuggingFace` module used by the
+      # tokenizer-loader macro expansion. Pulled transitively via
+      # swift-transformers/Hub but listed directly so we can import it.
+      - package: swift-huggingface
+        product: HuggingFace
     info:
       path: HikeCompanion/Info.plist
       properties:

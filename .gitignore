@@ -9,10 +9,11 @@ build/
 *.dSYM.zip
 *.dSYM
 
-# SwiftPM
+# SwiftPM (anywhere in tree, including vendored packages under external/)
 .swiftpm/
-.build/
+**/.build/
 Package.resolved
+external/**/Package.resolved
 
 # Models — large, downloaded by scripts/fetch-models.sh
 HikeCompanion/Resources/Models/*

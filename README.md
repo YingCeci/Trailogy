@@ -1,19 +1,18 @@
-# hikeCompanion — Kokoro TTS on iPhone
+# hikeCompanion — Gemma 4 + Kokoro on iPhone
 
-A minimal iOS app that runs [mlalma/kokoro-ios](https://github.com/mlalma/kokoro-ios)
-(Kokoro-82M ported to Apple's MLX framework) on a real iPhone. Type text,
-pick a voice, hit synthesize, hear it.
-
-This is the v0 building block for the full hike companion app — once we
-trust this works on-device, we layer Gemma 3n on top for question answering
-about national park geology / climate.
+An iOS app that runs **Gemma 4 E2B** (Google's edge LLM) and
+**Kokoro TTS** (mlalma's MLX port) entirely on-device. Ask a question,
+Gemma streams a response, Kokoro speaks it aloud. v0 building block for
+the full hike-companion park-classroom hackathon project.
 
 ## Requirements
 
 - macOS with Xcode 26+
-- Real iPhone running iOS 18.0+ (the iOS Simulator does **not** support MLX)
+- **iPhone 15 Pro / 16 Pro / 17 Pro or newer** running iOS 18.0+
+  (8 GB RAM minimum — Gemma 4 INT4 is ~3.5 GB resident)
+- The iOS Simulator does **not** support MLX
 - Apple Developer account (free Apple ID is fine for sideloading)
-- ~700 MB free disk space for model weights
+- ~5 GB free disk space for model weights
 
 ## Quick start
 
@@ -21,10 +20,15 @@ about national park geology / climate.
 git clone https://github.com/YingCeci/hikeCompanion.git
 cd hikeCompanion
 
-# 1) Download model + voices (~630 MB) from mlalma's KokoroTestApp Git LFS
+# 1) Kokoro TTS model + voices (~630 MB)
 bash scripts/fetch-models.sh
 
-# 2) Generate the Xcode project
+# 2) Gemma 4 E2B INT4 (~3.5 GB)  — primary repo
+bash scripts/fetch-gemma.sh
+#    or, if the primary has the PLE quantization bug:
+# bash scripts/fetch-gemma.sh --backup
+
+# 3) Generate the Xcode project
 bash scripts/generate-project.sh
 ```
 

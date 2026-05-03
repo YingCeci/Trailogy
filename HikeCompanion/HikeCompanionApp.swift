@@ -1,7 +1,6 @@
 // HikeCompanionApp.swift
-// SwiftUI @main entry. Caps MLX GPU memory at launch — without this, MLX
-// will grow its allocation as needed and we'll OOM once we add Gemma 4
-// alongside Kokoro. Mirrors the limits used by mlalma's KokoroTestApp.
+// SwiftUI @main entry. Caps MLX GPU memory at launch so Kokoro + Gemma
+// can coexist without unbounded growth → iOS jetsam.
 
 import MLX
 import SwiftUI
@@ -10,12 +9,13 @@ import SwiftUI
 struct HikeCompanionApp: App {
 
     init() {
-        // 50 MB cache (working scratch space for MLX kernels)
-        Memory.cacheLimit = 50 * 1024 * 1024
-        // 900 MB hard ceiling on MLX GPU allocations.
-        // Kokoro inference fits well under this; remaining iPhone Pro RAM
-        // (~3–4 GB working set) is reserved for Gemma when we add it.
-        Memory.memoryLimit = 900 * 1024 * 1024
+        // 100 MB cache (working scratch space for MLX kernels)
+        Memory.cacheLimit = 100 * 1024 * 1024
+        // 4.5 GB hard ceiling on MLX GPU allocations.
+        // Kokoro working set ~700 MB + Gemma 4 E2B INT4 ~3.5 GB ≈ 4.2 GB.
+        // iPhone 15/16/17 Pro (8 GB RAM) leaves ~5 GB for app processes
+        // before iOS jetsams; this gives us headroom.
+        Memory.memoryLimit = 4_500 * 1024 * 1024
     }
 
     var body: some Scene {
