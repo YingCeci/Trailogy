@@ -1,7 +1,10 @@
 // ContentView.swift
 // Phase 1 flow: type a question → Gemma 4 streams the response →
 // finished response goes through Kokoro → spoken aloud.
+// Also has a separate "Speak only" text field that bypasses Gemma — used
+// to verify Kokoro works in isolation when the full pipeline crashes.
 
+import MLX
 import SwiftUI
 import UIKit
 
@@ -13,6 +16,7 @@ struct ContentView: View {
     @State private var streamingText: String = ""
     @State private var isAsking: Bool = false
     @State private var speed: Double = 1.0
+    @State private var directSpeakText: String = "Listen carefully to the sounds around you."
 
     var body: some View {
         NavigationStack {
@@ -91,6 +95,20 @@ struct ContentView: View {
                             .buttonStyle(.bordered)
                     }
                 }
+
+                // Debug helper: speak text directly (no Gemma in the loop).
+                // Useful when the full Ask pipeline crashes — confirms Kokoro
+                // is healthy in isolation.
+                Section("Speak directly (debug)") {
+                    TextField("Text", text: $directSpeakText, axis: .vertical)
+                        .lineLimit(1...3)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Speak only (no Gemma)") {
+                        tts.synthesize(text: directSpeakText, speed: Float(speed))
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!tts.isReady || tts.isRunning)
+                }
             }
             .navigationTitle("HikeCompanion")
         }
@@ -118,6 +136,10 @@ struct ContentView: View {
                 // chunked-TTS pipeline. Phase 1.5 will pipe at sentence
                 // granularity so audio starts before Gemma finishes.
                 if !fullText.isEmpty {
+                    // Force MLX to release Gemma's working buffers (KV cache,
+                    // intermediate activations) before Kokoro starts. Without
+                    // this, the Gemma → Kokoro hand-off was OOM'ing iOS.
+                    MLX.Memory.clearCache()
                     tts.synthesize(text: fullText, speed: Float(speed))
                 }
             } catch {
