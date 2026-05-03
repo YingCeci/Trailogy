@@ -370,24 +370,28 @@ final class ValidationRunner: ObservableObject {
 
     // MARK: - Text chunking (avoid 510-token cap)
 
+    /// Empirically: Kokoro's duration predictor goes unstable on inputs
+    /// over ~60 characters and produces a high-pitch beep covering the
+    /// first ~1–2 seconds of audio. The token-cap (510) is irrelevant
+    /// at this scale — the bug fires far below it. So we chunk much
+    /// more aggressively than the cap requires, on every phrase break,
+    /// to keep each chunk safely below the trigger.
+    private static let phraseDelimiters: [Character] = [".", "!", "?", ",", ":", ";"]
+
+    /// Hard ceiling per chunk. Empirical safe zone is ~60 chars, but a
+    /// run-on phrase between commas can be longer than that and still
+    /// behave fine. 80 is a compromise — we hard-chop at word boundaries
+    /// only past this point.
+    private static let maxCharsPerChunk = 80
+
     private static func splitForSynthesis(_ text: String) -> [String] {
-        let primary = splitOnDelimiters(text, delimiters: [".", "!", "?"])
+        let primary = splitOnDelimiters(text, delimiters: phraseDelimiters)
         var safe: [String] = []
-        // Misaki produces ~1.5–2 tokens per word, ~6 chars/word average →
-        // 510 token cap ≈ ~1800 chars. 450 is well under that and lets typical
-        // paragraphs synthesize as a single call (better prosody, fewer
-        // chunk-boundary artifacts).
-        let maxChars = 450
         for s in primary {
-            if s.count <= maxChars {
+            if s.count <= maxCharsPerChunk {
                 safe.append(s)
             } else {
-                let secondary = splitOnDelimiters(s, delimiters: [",", ";"])
-                if secondary.allSatisfy({ $0.count <= maxChars }) {
-                    safe.append(contentsOf: secondary)
-                } else {
-                    safe.append(contentsOf: hardChop(s, maxChars: maxChars))
-                }
+                safe.append(contentsOf: hardChop(s, maxChars: maxCharsPerChunk))
             }
         }
         let cleaned = safe
