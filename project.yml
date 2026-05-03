@@ -40,10 +40,19 @@ targets:
         excludes:
           - "Resources/Models/README.md"
     dependencies:
+      # KokoroSwift is built as a dynamic .framework — must be embedded in
+      # the .app or dyld aborts at launch with __abort_with_payload.
       - package: KokoroSwift
         product: KokoroSwift
+        embed: true
+        codeSign: true
+      # MLXUtilsLibrary: linked directly (we use NpyzReader from our code),
+      # but NOT explicitly embedded — Xcode auto-embeds it transitively
+      # via KokoroSwift, and explicitly listing it as embed:true causes
+      # "Unexpected duplicate tasks" at copy phase.
       - package: MLXUtilsLibrary
         product: MLXUtilsLibrary
+        embed: false
     info:
       path: HikeCompanion/Info.plist
       properties:
