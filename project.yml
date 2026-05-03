@@ -107,6 +107,9 @@ targets:
           - arm64
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        # Phase 2: voice input. Both required by SFSpeechRecognizer on iOS.
+        NSMicrophoneUsageDescription: "HikeCompanion uses the microphone to hear your questions about the trail."
+        NSSpeechRecognitionUsageDescription: "HikeCompanion converts your spoken questions into text for the assistant. All recognition happens on-device."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lijuncheng16.HikeCompanion

@@ -11,6 +11,7 @@ import UIKit
 struct ContentView: View {
     @StateObject private var gemma = GemmaService()
     @StateObject private var tts = ValidationRunner()
+    @StateObject private var speech = SpeechRecognizer()
 
     @State private var question: String = "What's a hemlock tree?"
     @State private var streamingText: String = ""
@@ -36,6 +37,33 @@ struct ContentView: View {
                     TextField("Question", text: $question, axis: .vertical)
                         .lineLimit(1...4)
                         .textFieldStyle(.roundedBorder)
+
+                    // Voice-input row: tap to start/stop on-device ASR.
+                    // Recognized text replaces the question field on stop.
+                    HStack {
+                        Button {
+                            toggleRecording()
+                        } label: {
+                            HStack {
+                                Image(systemName: speech.isRecording ? "stop.circle.fill" : "mic.fill")
+                                Text(speech.isRecording ? "Stop" : "Tap to speak")
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(speech.isRecording ? .red : .accentColor)
+                        .disabled(!speech.isAuthorized || isAsking)
+
+                        Text(speech.status)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    if speech.isRecording && !speech.transcript.isEmpty {
+                        Text(speech.transcript)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
 
                     Picker("Voice", selection: $tts.selectedVoice) {
                         ForEach(tts.voiceNames, id: \.self) { name in
@@ -164,6 +192,29 @@ struct ContentView: View {
         let stats = MemoryStats.current()
         memorySnapshot = stats
         memoryEvents.append((label: label, stats: stats))
+    }
+
+    /// Toggle voice recording. On stop, copy the transcript into the
+    /// Question field. User reviews, then taps Ask.
+    private func toggleRecording() {
+        if speech.isRecording {
+            speech.stopRecording()
+            // Brief delay so the final partial result lands before we read it.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                let text = speech.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !text.isEmpty {
+                    self.question = text
+                }
+            }
+        } else {
+            do {
+                try speech.startRecording()
+            } catch {
+                // Errors surface in speech.status via the recognizer itself
+                // when possible; surface unexpected ones here too.
+                print("Speech start error: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func ask() {
