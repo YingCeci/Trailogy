@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var isAsking: Bool = false
     @State private var speed: Double = 1.0
     @State private var directSpeakText: String = "Listen carefully to the sounds around you."
+    @State private var memorySnapshot: MemoryStats = .current()
+    @State private var memoryEvents: [(label: String, stats: MemoryStats)] = []
 
     var body: some View {
         NavigationStack {
@@ -107,26 +109,64 @@ struct ContentView: View {
                         .lineLimit(1...3)
                         .textFieldStyle(.roundedBorder)
                     Button("Speak only (no Gemma)") {
+                        markMemoryEvent("Before Speak only")
                         tts.synthesize(text: directSpeakText, speed: Float(speed))
                     }
                     .buttonStyle(.bordered)
                     .disabled(!tts.isReady || tts.isRunning)
+                }
+
+                Section("Memory") {
+                    Text(memorySnapshot.summary)
+                        .font(.caption.monospaced())
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Refresh memory snapshot") {
+                        memorySnapshot = .current()
+                    }
+                    .buttonStyle(.bordered)
+                    if !memoryEvents.isEmpty {
+                        ForEach(memoryEvents.indices, id: \.self) { i in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(memoryEvents[i].label)
+                                    .font(.caption2.weight(.semibold))
+                                Text(memoryEvents[i].stats.summary)
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Button("Clear events") {
+                            memoryEvents.removeAll()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
                 }
             }
             .navigationTitle("HikeCompanion")
         }
     }
 
+    /// Snapshot current memory and append a labeled entry to the events log.
+    /// Also refreshes the headline `memorySnapshot` view.
+    private func markMemoryEvent(_ label: String) {
+        let stats = MemoryStats.current()
+        memorySnapshot = stats
+        memoryEvents.append((label: label, stats: stats))
+    }
+
     private func ask() {
         let prompt = question
         streamingText = ""
         isAsking = true
+        markMemoryEvent("Ask: start")
 
         Task {
             do {
                 // 1. Load Gemma into memory (lazy — first ask, or after
                 //    a previous unload). UI shows "Loading Gemma 4…".
                 try await gemma.loadIfNeeded()
+                markMemoryEvent("Ask: after Gemma load")
 
                 // 2. Stream the response.
                 guard let stream = gemma.streamResponse(to: prompt) else {
@@ -139,11 +179,13 @@ struct ContentView: View {
                     fullText += chunk
                     streamingText = fullText
                 }
+                markMemoryEvent("Ask: after generation")
 
                 // 3. Free Gemma's ~3.5 GB before Kokoro starts TTS — this
                 //    is the critical step that was OOMing the Gemma → Kokoro
                 //    hand-off. Next Ask will reload (~10–30 s).
                 gemma.unload()
+                markMemoryEvent("Ask: after Gemma unload")
 
                 // 4. Speak the response.
                 if !fullText.isEmpty {
