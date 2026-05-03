@@ -47,10 +47,22 @@ final class GemmaService: ObservableObject {
     private var conversationHistory: [Chat.Message] = []
 
     /// Cap on stored history. Each (user, assistant) pair is 2 messages,
-    /// so 4 = 2 turns of context. Past this, oldest messages are dropped.
-    /// Empirically, more turns → larger prefill KV cache → more memory
-    /// pressure → app jetsams around turn 3 even with text replay.
-    private let maxHistoryMessages = 4
+    /// so 20 = 10 turns of context. Past this, oldest messages drop off.
+    ///
+    /// Trade-off: each follow-up Ask pays a prefill cost proportional to
+    /// total history length. At 10 turns of typical Q&A (~100 tokens
+    /// each) that's ~3–5 s of prefill on Gemma 4 E2B over MLX on iPhone
+    /// — small compared to the 10–30 s Gemma reload that already
+    /// dominates each Ask.
+    ///
+    /// Memory: prefill KV cache for 1000 tokens ≈ 115 KB × 1000 = 115 MB
+    /// transient peak during prefill, on top of the ~2.5 GB Gemma weights.
+    /// Fits comfortably under iPhone 17 Pro's jetsam ceiling.
+    ///
+    /// Earlier history cap of 4 (2 turns) was set before the Kokoro
+    /// lazy-load fix freed ~500 MB at peak; the headroom now allows
+    /// longer memory.
+    private let maxHistoryMessages = 20
 
     private let systemInstructions = """
     You are a friendly outdoor companion who helps hikers understand what they \
