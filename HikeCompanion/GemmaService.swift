@@ -46,6 +46,12 @@ final class GemmaService: ObservableObject {
     private var modelContainer: ModelContainer?
     private var conversationHistory: [Chat.Message] = []
 
+    /// Cap on stored history. Each (user, assistant) pair is 2 messages,
+    /// so 4 = 2 turns of context. Past this, oldest messages are dropped.
+    /// Empirically, more turns → larger prefill KV cache → more memory
+    /// pressure → app jetsams around turn 3 even with text replay.
+    private let maxHistoryMessages = 4
+
     private let systemInstructions = """
     You are a friendly outdoor companion who helps hikers understand what they \
     see — geology, plants, animals, weather, and climate change. Keep responses \
@@ -102,7 +108,8 @@ final class GemmaService: ObservableObject {
     func streamResponse(to prompt: String) -> AsyncThrowingStream<String, Error>? {
         guard let container = modelContainer else { return nil }
 
-        // Snapshot current history; ChatSession will consume it.
+        // Snapshot current history (already capped to last `maxHistoryMessages`);
+        // ChatSession will consume it.
         let historySnapshot = conversationHistory
 
         let session = ChatSession(
@@ -120,9 +127,12 @@ final class GemmaService: ObservableObject {
                         fullText += chunk
                         continuation.yield(chunk)
                     }
-                    // Persist the turn to history.
+                    // Persist the turn, then trim the buffer.
                     self.conversationHistory.append(.init(role: .user, content: prompt))
                     self.conversationHistory.append(.init(role: .assistant, content: fullText))
+                    while self.conversationHistory.count > self.maxHistoryMessages {
+                        self.conversationHistory.removeFirst()
+                    }
                     self.historyTurnCount = self.conversationHistory.count / 2
                     continuation.finish()
                 } catch {
