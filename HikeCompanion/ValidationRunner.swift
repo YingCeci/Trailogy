@@ -123,19 +123,37 @@ final class ValidationRunner: ObservableObject {
                 // Voice name convention: prefix 'a' = US English, else GB.
                 let language: Language = (voiceKey.first == "a") ? .enUS : .enGB
 
-                let wallStart = Date().timeIntervalSince1970
-                let (audio, _) = try tts.generateAudio(
-                    voice: voiceArray,
-                    language: language,
-                    text: text
-                )
-                let wallTime = Date().timeIntervalSince1970 - wallStart
+                // Kokoro caps input at ~510 tokens after phonemization. Long
+                // text → exceed limit → MLX assertion / OOM crash. Chunk by
+                // sentence and concatenate audio. Cheap and robust.
+                let chunks = Self.splitForSynthesis(text)
 
+                var combined: [Float] = []
+                let wallStart = Date().timeIntervalSince1970
+
+                for (i, chunk) in chunks.enumerated() {
+                    DispatchQueue.main.async {
+                        self.status = "Synthesising chunk \(i+1)/\(chunks.count)…"
+                    }
+                    let (audio, _) = try tts.generateAudio(
+                        voice: voiceArray,
+                        language: language,
+                        text: chunk
+                    )
+                    combined.append(contentsOf: audio)
+                    // Brief silence between chunks (50 ms) to avoid clicks
+                    if i < chunks.count - 1 {
+                        let silenceFrames = Int(Double(KokoroTTS.Constants.samplingRate) * 0.05)
+                        combined.append(contentsOf: [Float](repeating: 0, count: silenceFrames))
+                    }
+                }
+
+                let wallTime = Date().timeIntervalSince1970 - wallStart
                 let sampleRate = Double(KokoroTTS.Constants.samplingRate)
-                let audioDur = Double(audio.count) / sampleRate
+                let audioDur = Double(combined.count) / sampleRate
                 let rtf = audioDur > 0 ? (wallTime / audioDur) : 0
 
-                let wavURL = try Self.saveWav(audio: audio, sampleRate: sampleRate)
+                let wavURL = try Self.saveWav(audio: combined, sampleRate: sampleRate)
 
                 let result = RunResult(
                     text: text,
@@ -149,14 +167,15 @@ final class ValidationRunner: ObservableObject {
                 DispatchQueue.main.async {
                     self.lastResult = result
                     self.lastWavURL = wavURL
+                    let chunkSuffix = chunks.count > 1 ? "  (\(chunks.count) chunks)" : ""
                     self.status = String(
-                        format: "RTF %.3f  (%.1f× realtime)  audio %.2f s  wall %.2f s",
-                        rtf, rtf > 0 ? 1.0 / rtf : 0, audioDur, wallTime
+                        format: "RTF %.3f  (%.1f× realtime)  audio %.2f s  wall %.2f s%@",
+                        rtf, rtf > 0 ? 1.0 / rtf : 0, audioDur, wallTime, chunkSuffix
                     )
                     self.isRunning = false
                 }
 
-                self.play(audio: audio, sampleRate: sampleRate)
+                self.play(audio: combined, sampleRate: sampleRate)
             } catch {
                 DispatchQueue.main.async {
                     self.status = "Synth error: \(error.localizedDescription)"
@@ -164,6 +183,66 @@ final class ValidationRunner: ObservableObject {
                 }
             }
         }
+    }
+
+    /// Split input text into chunks Kokoro can handle without exceeding the
+    /// ~510-token model limit. Heuristic, not perfect: split on sentence
+    /// terminators (. ! ?), then if any chunk is still too long, sub-split
+    /// on commas. Empirically a chunk under ~250 graphemes is safe; misaki
+    /// ratio is roughly 1.5–2 tokens per word.
+    private static func splitForSynthesis(_ text: String) -> [String] {
+        let primary = splitOnDelimiters(text, delimiters: [".", "!", "?"])
+        var safe: [String] = []
+        let maxChars = 250
+        for s in primary {
+            if s.count <= maxChars {
+                safe.append(s)
+            } else {
+                // Long sentence — try comma splits
+                let secondary = splitOnDelimiters(s, delimiters: [",", ";"])
+                if secondary.allSatisfy({ $0.count <= maxChars }) {
+                    safe.append(contentsOf: secondary)
+                } else {
+                    // Last resort: hard chop by char count at word boundaries
+                    safe.append(contentsOf: hardChop(s, maxChars: maxChars))
+                }
+            }
+        }
+        let cleaned = safe
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return cleaned.isEmpty ? [text] : cleaned
+    }
+
+    private static func splitOnDelimiters(_ text: String, delimiters: [Character]) -> [String] {
+        var out: [String] = []
+        var current = ""
+        for ch in text {
+            current.append(ch)
+            if delimiters.contains(ch) {
+                out.append(current)
+                current = ""
+            }
+        }
+        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty { out.append(tail) }
+        return out
+    }
+
+    private static func hardChop(_ text: String, maxChars: Int) -> [String] {
+        let words = text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+        var out: [String] = []
+        var current = ""
+        for w in words {
+            if current.count + w.count + 1 > maxChars {
+                if !current.isEmpty { out.append(current) }
+                current = w
+            } else {
+                current = current.isEmpty ? w : current + " " + w
+            }
+        }
+        if !current.isEmpty { out.append(current) }
+        return out
     }
 
     // MARK: - Playback
