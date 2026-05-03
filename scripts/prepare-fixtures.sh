@@ -42,6 +42,18 @@ cd "$UPSTREAM"
 # package and its deps (PyTorch, numpy, transformers, etc.).
 uv sync --frozen 2>/dev/null || uv sync
 
+# uv-created venvs don't include pip by default. The kokoro/misaki runtime
+# shells out to `python -m pip install` to fetch the spaCy en_core_web_sm
+# model on first use, which fails without pip. Install it after sync (must
+# be after, because `uv sync` removes packages not in the lockfile).
+uv pip install pip
+
+# Pre-download the spaCy model so the runtime pip-fetch is a no-op (more
+# robust than relying on it at synthesis time). Best-effort; if this fails
+# the prep script will fall back to the runtime download.
+uv run python -m spacy download en_core_web_sm 2>/dev/null || \
+    echo "  (spaCy model pre-download skipped; will fetch at runtime)"
+
 uv run python scripts/prepare_swift_bench_inputs.py
 
 # 3) Copy outputs into our Resources/Fixtures
