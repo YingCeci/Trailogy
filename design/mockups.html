@@ -1,0 +1,2851 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Nature companion — interactive prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg-page:   #efeee8;
+    --bg-screen: #0b0c0a;
+    --ink-100:   #f5f3ec;
+    --ink-80:    #c8c5bc;
+    --ink-60:    #8a8881;
+    --ink-40:    #5a5852;
+    --ink-25:    #2e2d29;
+    --ink-15:    #1d1c19;
+
+    --lime:    #d9f571;
+    --lime-2:  #c1dd58;
+
+    --sans: "Inter", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+
+    --phone-w: 390px;
+    --phone-h: 844px;
+    --phone-radius: 54px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg-page);
+    color: #2a2a26;
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 40px 20px;
+    user-select: none;
+  }
+
+  /* ---------- stage chrome ---------- */
+  .stage-head { text-align: center; margin-bottom: 28px; }
+  .stage-head .eyebrow {
+    font-size: 10.5px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #999;
+    font-weight: 600;
+  }
+  .stage-head h1 {
+    margin-top: 8px;
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    color: #1a1a17;
+  }
+
+  .hint {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 13px;
+    color: #777;
+    font-weight: 500;
+    height: 18px;
+    transition: opacity 400ms ease;
+  }
+  .hint kbd {
+    padding: 2px 7px;
+    background: #fff;
+    border: 1px solid #d9d7cd;
+    border-radius: 5px;
+    font-family: var(--sans);
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #555;
+    box-shadow: 0 1px 0 #d9d7cd;
+  }
+  .reset {
+    margin-top: 16px;
+    background: transparent;
+    border: 1px solid #d9d7cd;
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-family: var(--sans);
+    font-weight: 500;
+    font-size: 12px;
+    color: #666;
+    cursor: pointer;
+  }
+  .reset:hover { background: #fff; color: #1a1a17; }
+
+  /* ---------- iPhone ---------- */
+  .phone {
+    width: var(--phone-w);
+    height: var(--phone-h);
+    border-radius: var(--phone-radius);
+    background: #050605;
+    box-shadow:
+      inset 0 0 0 2px #1a1a17,
+      inset 0 0 0 6px #060604,
+      inset 0 0 0 8px #1a1a17,
+      0 36px 80px rgba(0,0,0,0.22),
+      0 6px 22px rgba(0,0,0,0.14);
+    padding: 8px;
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .screen {
+    position: relative;
+    width: 100%; height: 100%;
+    border-radius: 46px;
+    overflow: hidden;
+    background: var(--bg-screen);
+  }
+  .island {
+    position: absolute;
+    top: 11px; left: 50%;
+    transform: translateX(-50%);
+    width: 120px; height: 36px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .status {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 54px;
+    z-index: 90;
+    pointer-events: none;
+    display: flex; align-items: center;
+    padding: 18px 32px 0;
+    color: var(--ink-100);
+    font-weight: 600;
+    font-size: 15px;
+  }
+  .status .time { width: 56px; }
+  .status .right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+  /* ---------- view switching ---------- */
+  .view {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 700ms ease;
+    overflow: hidden;
+    border-radius: 46px;
+  }
+  .view.is-active { opacity: 1; pointer-events: auto; }
+
+  /* ---------- photo (real images) ---------- */
+  .photo {
+    position: relative;
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #1a1a17;
+  }
+  .photo img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* ---------- shared button ---------- */
+  .lime-btn {
+    display: block;
+    width: 100%;
+    padding: 18px 24px;
+    background: var(--lime);
+    color: #1a1f0a;
+    border: none;
+    border-radius: 999px;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    cursor: pointer;
+    text-align: center;
+    transition: background 200ms ease, transform 200ms ease;
+  }
+  .lime-btn:hover { background: var(--lime-2); }
+  .lime-btn:active { transform: scale(0.98); }
+
+
+  /* =================================================================
+     PICKER
+     ================================================================= */
+  .picker {
+    padding: 70px 0 24px;
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .picker::-webkit-scrollbar { display: none; }
+  .picker-head { padding: 6px 22px 22px; }
+  .picker-head .theme {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--lime);
+    margin-bottom: 18px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .picker-head .theme::before {
+    content: "";
+    width: 16px; height: 1px;
+    background: var(--lime);
+    opacity: 0.55;
+  }
+  .picker-head .h {
+    font-weight: 700;
+    font-size: 28px;
+    color: var(--ink-100);
+    letter-spacing: -0.02em;
+  }
+  .picker-head .sub {
+    margin-top: 4px;
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--ink-60);
+  }
+  .trail-list {
+    display: flex; flex-direction: column;
+    gap: 18px; padding: 0 16px 24px;
+  }
+  .t-card {
+    position: relative;
+    border-radius: 22px;
+    overflow: hidden;
+    aspect-ratio: 16/13;
+    background: #1a1a17;
+    cursor: pointer;
+    transition: transform 250ms ease;
+  }
+  .t-card:active { transform: scale(0.985); }
+  .t-card .photo { position: absolute; inset: 0; }
+  .t-card .scrim {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.10) 30%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.88) 100%);
+    pointer-events: none;
+  }
+  .t-card .body {
+    position: absolute;
+    left: 18px; right: 18px; bottom: 16px;
+    color: var(--ink-100);
+  }
+  .t-card .region {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(245,243,236,0.8);
+  }
+  .t-card .name {
+    margin-top: 4px;
+    font-weight: 700; font-size: 24px;
+    letter-spacing: -0.02em; line-height: 1.1;
+  }
+  .t-card .stats {
+    margin-top: 8px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 500;
+    color: rgba(245,243,236,0.88);
+  }
+  .t-card .stats .dot {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: rgba(245,243,236,0.55);
+  }
+
+  /* badge (top-right) */
+  .badge {
+    position: absolute;
+    top: 14px; right: 14px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-100);
+    display: inline-flex; align-items: center; gap: 6px;
+    z-index: 5;
+  }
+  .badge.ready .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 8px rgba(217,245,113,0.6);
+  }
+  .badge.walked { background: rgba(0,0,0,0.4); color: rgba(245,243,236,0.75); }
+
+  /* download pill */
+  .dl-btn {
+    position: absolute;
+    top: 14px; right: 14px;
+    z-index: 10;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(217,245,113,0.55);
+    border-radius: 999px;
+    padding: 7px 13px 7px 11px;
+    color: var(--lime);
+    font-family: var(--sans);
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform 150ms ease, background 200ms ease;
+    --dl-pct: 0%;
+  }
+  .dl-btn:hover { background: rgba(0,0,0,0.7); }
+  .dl-btn:active { transform: scale(0.96); }
+  .dl-btn svg { display: block; }
+  .dl-btn .dl-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: var(--dl-pct);
+    background: rgba(217,245,113,0.22);
+    transition: width 120ms linear;
+    z-index: -1;
+  }
+  .dl-btn .dl-text { position: relative; z-index: 1; }
+  .dl-btn .dl-icon { position: relative; z-index: 1; }
+  .dl-btn[data-state="downloading"] {
+    border-color: rgba(217,245,113,0.7);
+  }
+
+  .picker-foot {
+    margin: 4px 16px 0;
+    text-align: center;
+    padding: 14px;
+  }
+  .picker-foot .journal-link {
+    background: none; border: none;
+    font-family: var(--sans);
+    font-size: 13px; font-weight: 500;
+    color: var(--ink-60);
+    cursor: pointer;
+    letter-spacing: 0.04em;
+  }
+  .picker-foot .journal-link:hover { color: var(--ink-100); }
+
+
+  /* =================================================================
+     DETAIL — full-screen trail map
+     ================================================================= */
+  .detail-map {
+    height: 100%;
+    background: #0a0c0a;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .dm-top {
+    padding: 60px 18px 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    z-index: 6;
+    flex-shrink: 0;
+  }
+  .dm-title { flex: 1; text-align: center; }
+  .dm-name {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    color: var(--ink-100);
+  }
+  .dm-loc {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+  }
+  .dm-canvas {
+    flex: 1;
+    position: relative;
+    padding: 4px 8px 4px;
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 30%, rgba(217,245,113,0.05), transparent 70%),
+      radial-gradient(ellipse 80% 60% at 50% 80%, rgba(140,180,200,0.04), transparent 70%);
+    overflow: hidden;
+  }
+  .dm-map {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .dm-chip {
+    position: absolute;
+    left: 16px; right: 16px;
+    bottom: 14px;
+    padding: 10px 14px;
+    background: rgba(15,16,13,0.86);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(217,245,113,0.22);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .dm-chip-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 10px rgba(217,245,113,0.7);
+    flex-shrink: 0;
+  }
+  .dm-chip-eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--lime);
+  }
+  .dm-chip-sub {
+    margin-top: 3px;
+    font-size: 12.5px;
+    color: var(--ink-80);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+  .dm-action {
+    background: rgba(15,16,13,0.95);
+    border-top: 1px solid rgba(245,243,236,0.06);
+    padding: 18px 22px 22px;
+    flex-shrink: 0;
+  }
+  .dm-stats {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px;
+    font-size: 13.5px;
+    color: var(--ink-80);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    margin-bottom: 16px;
+  }
+  .dm-stats b {
+    color: var(--ink-100);
+    font-weight: 700;
+  }
+  .dm-stats .d-dot {
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: var(--ink-40);
+  }
+  .dm-explain {
+    margin: 10px auto 14px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--ink-60);
+    font-weight: 500;
+    line-height: 1.45;
+    max-width: 32ch;
+  }
+  .dm-foot {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-40);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .dm-foot .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--lime);
+    opacity: 0.85;
+    box-shadow: 0 0 6px rgba(217,245,113,0.5);
+  }
+
+  /* legacy detail styles still used by status bar text shadow etc */
+  .detail { height: 100%; position: relative; }
+  .detail .photo-wrap { position: absolute; inset: 0; }
+  .detail .photo-wrap::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.0) 22%, rgba(0,0,0,0.0) 38%, rgba(0,0,0,0.92) 100%);
+    pointer-events: none;
+  }
+  .detail .top {
+    position: absolute;
+    top: 64px; left: 24px; right: 24px;
+    color: var(--ink-100);
+    z-index: 5;
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.45);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-back, .nav-close {
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: none;
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    color: var(--ink-100);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .detail .card {
+    position: absolute;
+    bottom: 24px; left: 16px; right: 16px;
+    background: rgba(15,16,13,0.93);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 28px;
+    padding: 26px 22px 18px;
+    color: var(--ink-100);
+    z-index: 6;
+  }
+  .detail .card .name {
+    font-weight: 700; font-size: 30px;
+    letter-spacing: -0.025em; line-height: 1.05;
+  }
+  .detail .card .sub {
+    margin-top: 6px;
+    font-weight: 500; font-size: 14px;
+    color: var(--ink-80);
+  }
+  .detail .card .rule {
+    height: 1px; background: var(--ink-25); margin: 16px 0;
+  }
+  .detail .stats {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px; margin-bottom: 18px;
+  }
+  .detail .stats .label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: var(--ink-60);
+  }
+  .detail .stats .val {
+    margin-top: 4px;
+    font-weight: 600; font-size: 18px;
+    color: var(--ink-100); letter-spacing: -0.01em;
+  }
+  /* mini map widget inside the trail card */
+  .mini-map {
+    margin: 6px 0 4px;
+  }
+  .map-canvas {
+    width: 100%;
+    height: 118px;
+    border-radius: 12px;
+    background:
+      radial-gradient(ellipse 70% 55% at 12% 50%, rgba(217,245,113,0.06), transparent 70%),
+      linear-gradient(180deg, rgba(255,255,255,0.028), rgba(255,255,255,0.008));
+    border: 1px solid rgba(245,243,236,0.08);
+    padding: 6px 8px;
+    overflow: hidden;
+  }
+  .map-canvas svg {
+    width: 100%; height: 100%;
+    display: block;
+  }
+  .pin-halo   { animation: pinPulse  2.4s ease-in-out infinite; }
+  .pin-halo-2 { animation: pinPulse2 2.4s ease-in-out infinite; }
+  @keyframes pinPulse  { 0%, 100% { opacity: 0.18; } 50% { opacity: 0.45; } }
+  @keyframes pinPulse2 { 0%, 100% { opacity: 0.32; } 50% { opacity: 0.60; } }
+
+  .map-label {
+    margin-top: 10px;
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 12px;
+  }
+  .map-here {
+    font-size: 13px; font-weight: 600;
+    color: var(--ink-100);
+    letter-spacing: -0.005em;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .map-here::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 8px rgba(217,245,113,0.6);
+    flex-shrink: 0;
+  }
+  .map-sub {
+    font-size: 11.5px;
+    color: var(--ink-60);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+
+  .detail .hint-line {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 13px; color: var(--ink-60);
+    font-weight: 500;
+  }
+  .detail .footer {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-40);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .detail .footer .dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--lime); opacity: 0.85;
+    box-shadow: 0 0 6px rgba(217,245,113,0.5);
+  }
+
+
+  /* =================================================================
+     WALKING
+     ================================================================= */
+  .walking {
+    height: 100%;
+    position: relative;
+    background: #050706;
+    overflow: hidden;
+    touch-action: none;
+  }
+
+  .spots {
+    position: absolute;
+    top: 70px; left: 24px; right: 24px;
+    z-index: 5;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(245,243,236,0.06);
+    border-radius: 12px;
+    padding: 10px 14px 9px;
+    cursor: pointer;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    transition: background 200ms ease, border-color 200ms ease;
+  }
+  .spots:hover {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(245,243,236,0.12);
+  }
+  .spots .line {
+    position: relative;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(245,243,236,0.10) 8%, rgba(245,243,236,0.10) 92%, transparent);
+  }
+  .spots .marker {
+    position: absolute; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    transition: all 600ms ease;
+  }
+  .spots .marker.passed   { background: rgba(245,243,236,0.30); }
+  .spots .marker.upcoming { width: 4px; height: 4px; background: rgba(245,243,236,0.18); }
+  .spots .marker.active {
+    width: 8px; height: 8px;
+    background: var(--lime);
+    box-shadow:
+      0 0 0 3px rgba(217,245,113,0.18),
+      0 0 14px 2px rgba(217,245,113,0.45);
+    animation: breathe 4s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(217,245,113,0.18), 0 0 14px 2px rgba(217,245,113,0.45); }
+    50%      { box-shadow: 0 0 0 5px rgba(217,245,113,0.10), 0 0 22px 4px rgba(217,245,113,0.55); }
+  }
+  .spots .marker.approaching {
+    width: 8px; height: 8px;
+    background: rgba(217,245,113,0.18);
+    border: 1.5px solid var(--lime);
+    animation: approachMarker 1.4s ease-in-out infinite;
+  }
+  @keyframes approachMarker {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(217,245,113,0); }
+    50%      { box-shadow: 0 0 0 6px rgba(217,245,113,0.18); }
+  }
+
+  /* moving "you are here" pin slides between markers */
+  .spots .position-pin {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 0 3px rgba(217,245,113,0.16), 0 0 14px 2px rgba(217,245,113,0.55);
+    z-index: 2;
+    transition: left 4500ms linear;
+    opacity: 0;
+  }
+  .walking[data-tour-state="between"] .spots .position-pin,
+  .walking[data-tour-state="approaching"] .spots .position-pin {
+    opacity: 1;
+  }
+  .spots .label {
+    margin-top: 12px;
+    text-align: center;
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: rgba(245,243,236,0.5);
+  }
+
+  /* ----- AT-STOP: hero card REPLACES the progress bar at the top ----- */
+  .stop-hero {
+    position: absolute;
+    top: 70px; left: 24px; right: 24px;
+    height: 156px;
+    border-radius: 14px;
+    overflow: hidden;
+    z-index: 6;
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+    pointer-events: none;
+    transition: opacity 500ms ease, transform 500ms ease;
+    box-shadow: 0 14px 32px rgba(0,0,0,0.4);
+    background: none; border: none; padding: 0;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+    width: calc(100% - 48px);
+    display: block;
+  }
+  .walking[data-tour-state="at-stop"] .stop-hero {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+  /* Spots hides when at-stop (hero takes its place) */
+  .walking[data-tour-state="at-stop"] .spots {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 400ms ease;
+  }
+  .sh-img { position: absolute; inset: 0; }
+  .sh-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .sh-img::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(0,0,0,0.0) 30%, rgba(0,0,0,0.85) 100%);
+  }
+  .sh-meta {
+    position: absolute;
+    left: 16px; right: 16px; bottom: 12px;
+    z-index: 2;
+  }
+  .sh-eyebrow {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(217,245,113,0.85);
+  }
+  .sh-eyebrow .sh-arrived { color: var(--lime); }
+  .sh-name {
+    margin-top: 3px;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink-100);
+    letter-spacing: -0.022em;
+    line-height: 1.1;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  }
+
+  /* ----- BETWEEN-STOPS: walking info ----- */
+  .walking-info {
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    transform: translateY(-50%);
+    text-align: center;
+    z-index: 4;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 600ms ease;
+    padding: 0 32px;
+  }
+  .walking[data-tour-state="between"] .walking-info { opacity: 1; }
+  .wi-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+    margin-bottom: 22px;
+  }
+  .wi-text {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink-80);
+    letter-spacing: -0.018em;
+    line-height: 1.3;
+  }
+  .wi-text .wi-target { color: var(--lime); }
+  .wi-bar {
+    margin: 32px auto 0;
+    width: 200px;
+    height: 2px;
+    background: rgba(245,243,236,0.10);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .wi-bar-fill {
+    height: 100%;
+    background: var(--lime);
+    width: 0%;
+    border-radius: 1px;
+  }
+
+  /* ----- APPROACHING: pulse + label ----- */
+  .approach-info {
+    position: absolute;
+    top: 50%; left: 0; right: 0;
+    transform: translateY(-50%);
+    text-align: center;
+    z-index: 4;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 600ms ease;
+    padding: 0 32px;
+  }
+  .walking[data-tour-state="approaching"] .approach-info { opacity: 1; }
+  .ap-pulse {
+    width: 72px; height: 72px;
+    margin: 0 auto 24px;
+    position: relative;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(217,245,113,0.16), transparent 70%);
+  }
+  .ap-pulse::before, .ap-pulse::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 1.5px solid rgba(217,245,113,0.55);
+    animation: ripple 2s ease-out infinite;
+  }
+  .ap-pulse::after { animation-delay: 1s; }
+  .ap-pulse-core {
+    position: absolute;
+    inset: 38%;
+    border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 18px rgba(217,245,113,0.7);
+  }
+  .ap-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--lime);
+    margin-bottom: 10px;
+  }
+  .ap-name {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--ink-100);
+    letter-spacing: -0.022em;
+    line-height: 1.15;
+  }
+  .ap-sub {
+    margin-top: 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink-60);
+    letter-spacing: -0.005em;
+  }
+
+  /* Lyric — positioned below the stop hero (which is at top:70 height:156, ends 226) */
+  .lyric {
+    position: absolute;
+    top: 256px; left: 28px; right: 28px;
+    text-align: center;
+    z-index: 4;
+    transition: opacity 600ms ease;
+  }
+  .walking[data-tour-state="between"] .lyric,
+  .walking[data-tour-state="approaching"] .lyric {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Quiet center indicator while walking between stops */
+  .walking-quiet {
+    position: absolute;
+    top: 50%; left: 28px; right: 28px;
+    transform: translateY(-50%);
+    text-align: center;
+    z-index: 4;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 600ms ease;
+  }
+  .walking[data-tour-state="between"] .walking-quiet,
+  .walking[data-tour-state="approaching"] .walking-quiet {
+    opacity: 1;
+  }
+  .wq-eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+    margin-bottom: 14px;
+    transition: color 400ms ease;
+  }
+  .walking[data-tour-state="approaching"] .wq-eyebrow {
+    color: var(--lime);
+  }
+  .wq-name {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--ink-100);
+    letter-spacing: -0.022em;
+    line-height: 1.2;
+    transition: color 400ms ease;
+  }
+  .walking[data-tour-state="approaching"] .wq-name {
+    color: var(--lime);
+  }
+  .wq-distance {
+    margin-top: 14px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink-60);
+    letter-spacing: -0.005em;
+  }
+  .walking[data-tour-state="approaching"] .wq-distance {
+    opacity: 0;
+    transition: opacity 400ms ease;
+  }
+  /* Hide the between/approaching indicator while the mic is recording */
+  .walking.is-holding .walking-quiet {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .lyric.is-fading { opacity: 0.05; }
+  .lyric p {
+    transition: opacity 800ms ease;
+    letter-spacing: -0.015em;
+  }
+  .lyric .prev {
+    font-size: 17px; font-weight: 500;
+    line-height: 1.35;
+    color: var(--ink-100);
+    opacity: 0.28;
+    margin-bottom: 14px;
+  }
+  .lyric .now {
+    font-size: 24px; font-weight: 600;
+    line-height: 1.25;
+    color: var(--ink-100);
+    opacity: 1;
+    margin-bottom: 14px;
+    letter-spacing: -0.022em;
+  }
+  .lyric .next {
+    font-size: 17px; font-weight: 500;
+    line-height: 1.35;
+    color: var(--ink-100);
+    opacity: 0.14;
+  }
+  .walking.is-holding .lyric .prev { opacity: 0.05; }
+  .walking.is-holding .lyric .now  { opacity: 0.08; }
+  .walking.is-holding .lyric .next { opacity: 0.03; }
+
+  /* live question transcript — shown in lime while holding Ask */
+  .ask-transcript {
+    position: absolute;
+    top: 46%; left: 28px; right: 28px;
+    transform: translateY(-50%);
+    text-align: center;
+    z-index: 8;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 350ms ease;
+  }
+  .walking.is-holding .ask-transcript { opacity: 1; }
+  .ask-transcript .ask-eyebrow {
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(217,245,113,0.55);
+    margin-bottom: 14px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .ask-transcript .ask-eyebrow .ax-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 10px rgba(217,245,113,0.7);
+    animation: axPulse 1.4s ease-in-out infinite;
+  }
+  @keyframes axPulse {
+    0%, 100% { transform: scale(1);   opacity: 1;   }
+    50%      { transform: scale(1.4); opacity: 0.5; }
+  }
+  .ask-transcript .ax-text {
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    color: var(--lime);
+  }
+  .ask-transcript .cursor {
+    display: inline-block;
+    width: 3px;
+    height: 0.95em;
+    background: var(--lime);
+    margin-left: 4px;
+    vertical-align: -10%;
+    animation: blink 1s steps(2) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* three controls */
+  .walk-controls {
+    position: absolute;
+    bottom: 60px; left: 0; right: 0;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 28px;
+  }
+  .ctrl {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(245,243,236,0.18);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    color: var(--ink-100);
+    transition: transform 180ms ease, background 200ms ease, box-shadow 250ms ease, border-color 200ms ease;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 0;
+  }
+  .ctrl:active { transform: scale(0.94); }
+  .ctrl--cam, .ctrl--more {
+    width: 56px; height: 56px;
+  }
+  .ctrl--cam:hover, .ctrl--more:hover { background: rgba(255,255,255,0.10); }
+  .ctrl--cam svg, .ctrl--more svg { display: block; }
+  .ctrl--more.is-open {
+    background: rgba(217,245,113,0.10);
+    border-color: rgba(217,245,113,0.45);
+    color: var(--lime);
+  }
+  .ctrl--more .i-play-glyph { display: none; }
+  .walking.is-paused .ctrl--more .i-pause-glyph { display: none; }
+  .walking.is-paused .ctrl--more .i-play-glyph  { display: block; }
+  .walking.is-paused .ctrl--more {
+    background: rgba(217,245,113,0.10);
+    border-color: rgba(217,245,113,0.35);
+    color: var(--lime);
+  }
+
+  /* Mic (large, lime, primary) — tap-to-toggle */
+  .ctrl--ask {
+    width: 88px; height: 88px;
+    background: var(--lime);
+    color: #1a1f0a;
+    border: none;
+    box-shadow: 0 0 0 0 rgba(217,245,113,0.0);
+    position: relative;
+  }
+  .ctrl--ask svg { display: block; }
+  .ctrl--ask.is-holding {
+    transform: scale(1.06);
+    box-shadow:
+      0 0 0 14px rgba(217,245,113,0.14),
+      0 0 0 28px rgba(217,245,113,0.06),
+      0 0 50px 8px rgba(217,245,113,0.45);
+  }
+  .ctrl--ask::before, .ctrl--ask::after {
+    content: "";
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(217,245,113,0.55);
+    pointer-events: none;
+    opacity: 0;
+  }
+  .ctrl--ask.is-holding::before { animation: ripple 2s ease-out infinite; }
+  .ctrl--ask.is-holding::after  { animation: ripple 2s ease-out infinite 1s; }
+  @keyframes ripple {
+    0%   { transform: scale(1);   opacity: 0.7; }
+    100% { transform: scale(1.9); opacity: 0;   }
+  }
+
+  /* More popup sheet — anchored above the More button */
+  .more-sheet {
+    position: absolute;
+    bottom: 168px;
+    right: 16px;
+    width: 240px;
+    background: rgba(20,21,18,0.96);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(245,243,236,0.10);
+    border-radius: 16px;
+    padding: 6px;
+    box-shadow: 0 16px 40px rgba(0,0,0,0.55), 0 0 30px rgba(0,0,0,0.3);
+    z-index: 14;
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+    pointer-events: none;
+    transform-origin: bottom right;
+    transition: opacity 220ms ease, transform 220ms ease;
+  }
+  .more-sheet.is-shown {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+  .ms-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 10px;
+    background: none;
+    border: none;
+    border-radius: 10px;
+    color: var(--ink-100);
+    font-family: var(--sans);
+    text-align: left;
+    cursor: pointer;
+    transition: background 150ms ease;
+  }
+  .ms-item:hover { background: rgba(255,255,255,0.05); }
+  .ms-icon {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--ink-100);
+    flex-shrink: 0;
+  }
+  .ms-icon .i-play { display: none; }
+  .ms-item.is-paused .i-pause { display: none; }
+  .ms-item.is-paused .i-play  { display: block; }
+  .ms-label {
+    flex: 1;
+    font-size: 14.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .ms-divider {
+    height: 1px;
+    background: rgba(245,243,236,0.06);
+    margin: 4px 8px;
+  }
+  .ms-item--danger { color: #e8b88a; }
+  .ms-item--danger .ms-icon { color: #e8b88a; }
+
+  /* Paused state — surfaced near the lyric */
+  .paused-banner {
+    position: absolute;
+    bottom: 174px; left: 0; right: 0;
+    text-align: center;
+    z-index: 11;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 300ms ease, transform 300ms ease;
+  }
+  .walking.is-paused .paused-banner {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .paused-banner span {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px;
+    background: rgba(20,21,18,0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(245,243,236,0.12);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-80);
+  }
+  .paused-banner span::before {
+    content: "";
+    width: 6px; height: 6px;
+    background: var(--ink-60);
+    border-radius: 1px;
+    box-shadow: 4px 0 0 var(--ink-60);
+  }
+  .walking.is-paused .spots .marker.active {
+    animation-play-state: paused;
+  }
+  .walking.is-paused .lyric { opacity: 0.45; }
+
+  /* photo context strip — captured image becomes context for narration & questions */
+  .photo-context {
+    position: absolute;
+    top: 122px; left: 16px; right: 16px;
+    z-index: 7;
+    display: flex; align-items: center;
+    gap: 12px;
+    padding: 8px 8px 8px 8px;
+    background: rgba(15,16,13,0.88);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(217,245,113,0.32);
+    border-radius: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.35), 0 0 24px rgba(217,245,113,0.06);
+    opacity: 0;
+    transform: translateY(-8px);
+    pointer-events: none;
+    transition: opacity 350ms ease, transform 350ms ease;
+  }
+  .photo-context.is-shown {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .pc-thumb {
+    width: 56px; height: 56px;
+    object-fit: cover;
+    border-radius: 9px;
+    flex-shrink: 0;
+    border: 1px solid rgba(245,243,236,0.08);
+  }
+  .pc-text { flex: 1; min-width: 0; }
+  .pc-eyebrow {
+    font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.20em; text-transform: uppercase;
+    color: var(--lime);
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .pc-eyebrow .pc-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 6px rgba(217,245,113,0.7);
+  }
+  .pc-sub {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--ink-80);
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+  .pc-dismiss {
+    background: rgba(255,255,255,0.05);
+    border: none;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    color: var(--ink-60);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    transition: background 200ms ease, color 200ms ease;
+  }
+  .pc-dismiss:hover { background: rgba(255,255,255,0.10); color: var(--ink-100); }
+
+  /* full-screen tour map overlay — opens from the progress bar tap */
+  .tour-map {
+    position: absolute; inset: 0;
+    z-index: 90;
+    background: #0a0c0a;
+    display: flex; flex-direction: column;
+    border-radius: 46px;
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(8px);
+    pointer-events: none;
+    transition: opacity 280ms ease, transform 280ms ease;
+  }
+  .tour-map.is-shown {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+  .tm-top {
+    padding: 60px 18px 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .tm-title { flex: 1; text-align: center; }
+  .tm-name {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ink-100);
+    letter-spacing: -0.015em;
+  }
+  .tm-loc {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--lime);
+  }
+  .tm-canvas {
+    flex: 1;
+    padding: 4px 8px;
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 50%, rgba(217,245,113,0.05), transparent 70%);
+    overflow: hidden;
+  }
+  .tm-foot {
+    flex-shrink: 0;
+    padding: 14px 22px 30px;
+    text-align: center;
+  }
+  .tm-progress {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .tm-progress::before {
+    content: "";
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 8px rgba(217,245,113,0.6);
+  }
+
+  /* full-screen camera viewfinder modal */
+  .camera-view {
+    position: absolute; inset: 0;
+    z-index: 80;
+    background: #000;
+    opacity: 0;
+    transform: scale(1.04);
+    pointer-events: none;
+    transition: opacity 280ms ease, transform 280ms ease;
+    display: flex; flex-direction: column;
+    border-radius: 46px;
+    overflow: hidden;
+  }
+  .camera-view.is-shown {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+  .cv-preview {
+    position: absolute; inset: 0;
+  }
+  .cv-preview img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    filter: brightness(0.78) contrast(1.05) saturate(0.95);
+    display: block;
+  }
+  .cv-grid, .cv-brackets {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .cv-top {
+    position: relative;
+    z-index: 5;
+    padding: 60px 22px 0;
+    display: flex; align-items: center; justify-content: space-between;
+    color: white;
+  }
+  .cv-close {
+    width: 36px; height: 36px;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0;
+  }
+  .cv-title {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.22em; text-transform: uppercase;
+    color: rgba(255,255,255,0.85);
+    text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+  }
+  .cv-spacer { width: 36px; height: 36px; }
+
+  .cv-bottom {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    z-index: 5;
+    padding: 18px 0 50px;
+    background: linear-gradient(180deg, transparent, rgba(0,0,0,0.55) 60%);
+    display: flex; flex-direction: column; align-items: center;
+    gap: 18px;
+  }
+  .cv-hint {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(255,255,255,0.75);
+    text-shadow: 0 1px 6px rgba(0,0,0,0.5);
+    text-align: center;
+    padding: 0 36px;
+  }
+  .cv-capture {
+    width: 68px; height: 68px;
+    border-radius: 50%;
+    background: white;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    transition: transform 120ms ease;
+  }
+  .cv-capture::before {
+    content: "";
+    position: absolute;
+    inset: -7px;
+    border: 3px solid white;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+  .cv-capture:active,
+  .cv-capture.is-firing {
+    transform: scale(0.88);
+    background: rgba(255,255,255,0.85);
+  }
+
+  .cv-flash {
+    position: absolute; inset: 0;
+    background: white;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .cv-flash.is-flashing {
+    animation: cvFlash 320ms ease-out forwards;
+  }
+  @keyframes cvFlash {
+    0%   { opacity: 0.95; }
+    100% { opacity: 0;    }
+  }
+
+  /* camera flash + toast */
+  .cam-flash {
+    position: absolute; inset: 0;
+    background: #fff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 50;
+  }
+  .cam-flash.is-flashing {
+    opacity: 0.85;
+    animation: flash 350ms ease-out forwards;
+  }
+  @keyframes flash {
+    0%   { opacity: 0.85; }
+    100% { opacity: 0;    }
+  }
+  .toast {
+    position: absolute;
+    top: 130px; left: 50%;
+    transform: translateX(-50%) translateY(-8px);
+    padding: 8px 16px;
+    background: rgba(0,0,0,0.65);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-radius: 999px;
+    color: var(--lime);
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 60;
+    transition: opacity 300ms ease, transform 300ms ease;
+  }
+  .toast.is-shown {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+
+  /* =================================================================
+     JOURNAL
+     ================================================================= */
+  .journal {
+    padding: 64px 0 32px;
+    height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .journal::-webkit-scrollbar { display: none; }
+  /* close button floats over the scroll content */
+  .j-close-fixed {
+    position: absolute;
+    top: 64px; right: 24px;
+    z-index: 30;
+    background: rgba(15,16,13,0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  /* "Today" eyebrow now scrolls with the content */
+  .j-eyebrow {
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+    margin-bottom: 10px;
+  }
+  .j-head { padding: 64px 28px 18px; }
+  .j-head .name {
+    font-weight: 700; font-size: 30px;
+    letter-spacing: -0.025em;
+    color: var(--ink-100);
+    line-height: 1.05;
+  }
+  .j-head .date {
+    margin-top: 4px;
+    font-size: 13px; font-weight: 500;
+    color: var(--ink-60);
+  }
+  .journal .hero {
+    width: calc(100% - 32px);
+    margin: 8px 16px 22px;
+    aspect-ratio: 16/10;
+    border-radius: 18px;
+    overflow: hidden;
+  }
+  /* shared section label */
+  .j-label {
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.20em; text-transform: uppercase;
+    color: var(--ink-60);
+  }
+
+  /* Stops you walked — sequential journal entries, one per stop */
+  .journal .stops-list {
+    margin: 4px 28px 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--ink-15);
+  }
+  .journal .stop {
+    display: flex;
+    gap: 14px;
+    padding: 14px 0;
+    align-items: flex-start;
+  }
+  .journal .stop + .stop {
+    border-top: 1px solid var(--ink-15);
+  }
+  .journal .stops-list .j-label + .stop {
+    margin-top: 4px;
+  }
+  .journal .stop-num {
+    flex: 0 0 auto;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(217,245,113,0.10);
+    border: 1px solid rgba(217,245,113,0.45);
+    color: var(--lime);
+    font-size: 11px;
+    font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    margin-top: 2px;
+    letter-spacing: 0.02em;
+  }
+  .journal .stop-body { flex: 1; min-width: 0; }
+  /* stop name = small eyebrow; the LEARNING is the primary text */
+  .journal .stop-name {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.20em;
+    text-transform: uppercase;
+    color: var(--ink-60);
+    margin-bottom: 8px;
+  }
+  .journal .stop-fact {
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--ink-100);
+    letter-spacing: -0.01em;
+  }
+  .journal .stop-qa {
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-left: 2px solid var(--lime);
+    background: rgba(217,245,113,0.04);
+    border-radius: 0 10px 10px 0;
+  }
+  .journal .stop-qa-q {
+    font-size: 13px;
+    font-weight: 600;
+    font-style: italic;
+    color: var(--ink-100);
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+  }
+  .journal .stop-qa-a {
+    margin-top: 6px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--ink-80);
+  }
+
+  /* What you saw */
+  .journal .saw {
+    margin: 22px 28px 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--ink-15);
+  }
+  .journal .saw .explain {
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--ink-60);
+    line-height: 1.5;
+    max-width: 36ch;
+  }
+  .journal .saw ul { list-style: none; margin-top: 12px; padding: 0; }
+  .journal .saw li {
+    font-size: 14px;
+    color: var(--ink-100);
+    padding: 6px 0;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .journal .saw li::before {
+    content: "";
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--ink-40);
+  }
+
+  /* Share */
+  .journal .send { margin: 16px 0 8px; }
+  .journal .send button {
+    width: 100%;
+    padding: 14px 18px;
+    background: transparent;
+    color: var(--ink-100);
+    border: 1px solid var(--ink-25);
+    border-radius: 999px;
+    font-family: var(--sans);
+    font-weight: 600; font-size: 14px;
+    cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    transition: background 200ms ease, border-color 200ms ease;
+  }
+  .journal .send button:hover {
+    background: rgba(217,245,113,0.06);
+    border-color: rgba(217,245,113,0.5);
+  }
+  .journal .send .share-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--lime);
+    box-shadow: 0 0 8px rgba(217,245,113,0.6);
+  }
+  .journal .send button.is-shared {
+    border-color: rgba(217,245,113,0.5);
+    background: rgba(217,245,113,0.06);
+    color: var(--lime);
+  }
+  .journal .send-status {
+    margin-top: 8px;
+    text-align: center;
+    font-size: 10.5px; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-40);
+  }
+</style>
+</head>
+<body>
+
+<div class="stage-head">
+  <div class="eyebrow">Interactive prototype</div>
+  <h1>Nature companion</h1>
+</div>
+
+<div class="phone">
+  <div class="screen">
+    <div class="island"></div>
+    <div class="status">
+      <span class="time" id="time">9:41</span>
+      <span class="right">
+        <svg width="26" height="13" viewBox="0 0 26 13" fill="none" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="22" height="12" rx="3" stroke="currentColor" opacity="0.55"/>
+          <rect x="2" y="2" width="17" height="9" rx="1.5" fill="currentColor" opacity="0.95"/>
+          <rect x="23" y="4" width="2" height="5" rx="1" fill="currentColor" opacity="0.55"/>
+        </svg>
+      </span>
+    </div>
+
+    <!-- ========== PICKER ========== -->
+    <div class="view is-active" data-view="picker">
+      <div class="picker">
+        <div class="picker-head">
+          <div class="theme">Nature, the best teacher.</div>
+          <div class="h">Trails near you</div>
+          <div class="sub">Pittsburgh</div>
+        </div>
+        <div class="trail-list">
+
+          <!-- KILDOO — initially needs download -->
+          <div class="t-card" data-trail="kildoo">
+            <div class="photo">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Woodlands_around_McConnell%27s_Mill_State_Park.jpg" alt="Woodlands at McConnells Mill State Park">
+            </div>
+            <div class="scrim"></div>
+            <div id="kildoo-status">
+              <button class="dl-btn" id="dl-kildoo" data-state="idle">
+                <span class="dl-fill"></span>
+                <span class="dl-icon">
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M5 1V7M5 7L2.5 4.5M5 7L7.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M1.5 9H8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                  </svg>
+                </span>
+                <span class="dl-text">Download · 68 MB</span>
+              </button>
+            </div>
+            <div class="body">
+              <div class="region">McConnells Mill</div>
+              <div class="name">Kildoo Trail</div>
+              <div class="stats">
+                <span>2.0 mi</span><span class="dot"></span>
+                <span>Moderate</span><span class="dot"></span>
+                <span>50 min</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- HELLS HOLLOW — walked -->
+          <div class="t-card" data-trail="hells">
+            <div class="photo">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/2/22/Hell%27s_Hollow_Falls.JPG" alt="Hells Hollow Falls">
+            </div>
+            <div class="scrim"></div>
+            <div class="badge walked">Apr 14</div>
+            <div class="body">
+              <div class="region">McConnells Mill</div>
+              <div class="name">Hells Hollow</div>
+              <div class="stats">
+                <span>1.2 mi</span><span class="dot"></span>
+                <span>Easy</span><span class="dot"></span>
+                <span>50 min</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- TRANQUIL — available -->
+          <div class="t-card" data-trail="tranquil">
+            <div class="photo">
+              <img src="https://upload.wikimedia.org/wikipedia/commons/6/60/Pittsburgh_frick_park_trail.jpg" alt="Frick Park trail">
+            </div>
+            <div class="scrim"></div>
+            <div class="body">
+              <div class="region">Frick Park</div>
+              <div class="name">Tranquil Trail</div>
+              <div class="stats">
+                <span>1.5 mi</span><span class="dot"></span>
+                <span>Easy</span><span class="dot"></span>
+                <span>15 min</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="picker-foot">
+          <button class="journal-link" id="open-journal">Journal</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ========== DETAIL ========== -->
+    <div class="view" data-view="detail">
+      <div class="detail-map">
+        <!-- top nav -->
+        <div class="dm-top">
+          <button class="nav-back" id="back-to-picker" aria-label="Back">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M9 2.5L4.5 7L9 11.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+          <div class="dm-title">
+            <div class="dm-name">Kildoo Trail</div>
+            <div class="dm-loc">McConnells Mill State Park</div>
+          </div>
+          <div style="width:32px;"></div>
+        </div>
+
+        <!-- full-screen trail map -->
+        <div class="dm-canvas">
+          <svg class="dm-map" viewBox="0 0 320 540" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            <!-- compass -->
+            <g transform="translate(286,38)" opacity="0.55">
+              <text font-size="10" font-weight="800" fill="rgba(245,243,236,0.65)" text-anchor="middle" x="3" y="0">N</text>
+              <line x1="3" y1="6" x2="3" y2="22" stroke="rgba(245,243,236,0.5)" stroke-width="1"/>
+              <polygon points="0,16 3,22 6,16" fill="rgba(245,243,236,0.5)"/>
+            </g>
+
+            <!-- scale bar -->
+            <g transform="translate(20,510)" opacity="0.6">
+              <line x1="0" y1="0" x2="60" y2="0" stroke="rgba(245,243,236,0.5)" stroke-width="1.4"/>
+              <line x1="0" y1="-3" x2="0" y2="3" stroke="rgba(245,243,236,0.5)" stroke-width="1.2"/>
+              <line x1="60" y1="-3" x2="60" y2="3" stroke="rgba(245,243,236,0.5)" stroke-width="1.2"/>
+              <text x="30" y="14" font-size="9" font-weight="700" fill="rgba(245,243,236,0.55)" text-anchor="middle" letter-spacing="0.6">¼ MILE</text>
+            </g>
+
+            <!-- topo speckle -->
+            <g opacity="0.18" fill="rgba(245,243,236,0.6)">
+              <circle cx="50"  cy="80"  r="0.8"/>
+              <circle cx="80"  cy="200" r="0.8"/>
+              <circle cx="60"  cy="380" r="0.8"/>
+              <circle cx="260" cy="100" r="0.8"/>
+              <circle cx="270" cy="240" r="0.8"/>
+              <circle cx="250" cy="400" r="0.8"/>
+              <circle cx="40"  cy="460" r="0.8"/>
+              <circle cx="280" cy="460" r="0.8"/>
+            </g>
+
+            <!-- Slippery Rock Creek (vertical, sinuous through center) -->
+            <path d="M160,52 Q150,100 158,160 Q166,230 152,300 Q148,370 162,440 Q170,490 160,510"
+                  stroke="rgba(140,180,200,0.18)" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.6"/>
+            <path d="M160,52 Q150,100 158,160 Q166,230 152,300 Q148,370 162,440 Q170,490 160,510"
+                  stroke="rgba(140,180,200,0.55)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+
+            <!-- East-bank Kildoo Trail (right side) - dashed -->
+            <path d="M160,80 Q195,105 200,170 Q207,225 210,280 Q215,350 195,415 Q175,475 160,498"
+                  stroke="rgba(245,243,236,0.62)" stroke-width="1.5" fill="none"
+                  stroke-dasharray="3,3" stroke-linecap="round"/>
+
+            <!-- West-bank return - dashed -->
+            <path d="M160,80 Q125,105 122,180 Q118,240 125,295 Q130,360 140,420 Q150,475 160,498"
+                  stroke="rgba(245,243,236,0.5)" stroke-width="1.5" fill="none"
+                  stroke-dasharray="3,3" stroke-linecap="round"/>
+
+            <!-- direction arrow on east trail (heading south) -->
+            <g transform="translate(208,345)" opacity="0.55">
+              <polygon points="-4,-3 4,-3 0,4" fill="rgba(245,243,236,0.7)"/>
+            </g>
+            <!-- direction arrow on west trail (heading north) -->
+            <g transform="translate(127,210)" opacity="0.55">
+              <polygon points="-4,3 4,3 0,-4" fill="rgba(245,243,236,0.7)"/>
+            </g>
+
+            <!-- WAYPOINT 1 — Covered Bridge & Mill (active, lime) -->
+            <circle cx="160" cy="80" r="24" fill="#d9f571" opacity="0.20" class="pin-halo"/>
+            <circle cx="160" cy="80" r="16" fill="#d9f571" opacity="0.36" class="pin-halo-2"/>
+            <circle cx="160" cy="80" r="13" fill="#d9f571"/>
+            <text x="160" y="80" font-size="13" font-weight="800" fill="#1a1f0a"
+                  text-anchor="middle" dominant-baseline="middle">1</text>
+            <text x="160" y="120" font-size="12" font-weight="700" letter-spacing="0.4"
+                  fill="rgba(217,245,113,0.95)" text-anchor="middle" dominant-baseline="middle"
+                  paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Covered Bridge &amp; Mill</text>
+
+            <!-- WAYPOINT 2 — Layered Cliffs -->
+            <circle cx="200" cy="170" r="13" fill="rgba(15,16,13,0.95)" stroke="rgba(245,243,236,0.7)" stroke-width="1.3"/>
+            <text x="200" y="170" font-size="12" font-weight="800" fill="rgba(245,243,236,0.92)"
+                  text-anchor="middle" dominant-baseline="middle">2</text>
+            <text x="222" y="170" font-size="12" font-weight="700" letter-spacing="0.4"
+                  fill="rgba(245,243,236,0.85)" text-anchor="start" dominant-baseline="middle"
+                  paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Layered Cliffs</text>
+
+            <!-- WAYPOINT 3 — Kildoo Falls -->
+            <circle cx="210" cy="280" r="13" fill="rgba(15,16,13,0.95)" stroke="rgba(245,243,236,0.7)" stroke-width="1.3"/>
+            <text x="210" y="280" font-size="12" font-weight="800" fill="rgba(245,243,236,0.92)"
+                  text-anchor="middle" dominant-baseline="middle">3</text>
+            <text x="232" y="280" font-size="12" font-weight="700" letter-spacing="0.4"
+                  fill="rgba(245,243,236,0.85)" text-anchor="start" dominant-baseline="middle"
+                  paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Kildoo Falls</text>
+
+            <!-- WAYPOINT 4 — Eckert Bridge (bottom, south crossing) -->
+            <circle cx="160" cy="498" r="13" fill="rgba(15,16,13,0.95)" stroke="rgba(245,243,236,0.7)" stroke-width="1.3"/>
+            <text x="160" y="498" font-size="12" font-weight="800" fill="rgba(245,243,236,0.92)"
+                  text-anchor="middle" dominant-baseline="middle">4</text>
+            <text x="160" y="474" font-size="12" font-weight="700" letter-spacing="0.4"
+                  fill="rgba(245,243,236,0.85)" text-anchor="middle" dominant-baseline="middle"
+                  paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Eckert Bridge</text>
+
+            <!-- WAYPOINT 5 — Slippery Rock (west side, on the return) -->
+            <circle cx="125" cy="295" r="13" fill="rgba(15,16,13,0.95)" stroke="rgba(245,243,236,0.7)" stroke-width="1.3"/>
+            <text x="125" y="295" font-size="12" font-weight="800" fill="rgba(245,243,236,0.92)"
+                  text-anchor="middle" dominant-baseline="middle">5</text>
+            <text x="103" y="295" font-size="12" font-weight="700" letter-spacing="0.4"
+                  fill="rgba(245,243,236,0.85)" text-anchor="end" dominant-baseline="middle"
+                  paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Slippery Rock</text>
+          </svg>
+
+        </div>
+
+        <!-- bottom action card -->
+        <div class="dm-action">
+          <div class="dm-stats">
+            <span><b>2.0</b> mi</span><span class="d-dot"></span>
+            <span><b>1</b> hr</span><span class="d-dot"></span>
+            <span><b>5</b> stops</span><span class="d-dot"></span>
+            <span>Moderate</span>
+          </div>
+          <button class="lime-btn" id="begin">Begin</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ========== WALKING ========== -->
+    <div class="view" data-view="walking">
+      <div class="walking" id="walking">
+
+        <button class="spots" id="spots-btn" aria-label="Show full trail map">
+          <div class="line">
+            <span class="marker" data-stop="0" style="left: 12%;"></span>
+            <span class="marker" data-stop="1" style="left: 32%;"></span>
+            <span class="marker" data-stop="2" style="left: 50%;"></span>
+            <span class="marker" data-stop="3" style="left: 70%;"></span>
+            <span class="marker" data-stop="4" style="left: 88%;"></span>
+            <span class="position-pin" id="position-pin" style="left: 50%;"></span>
+          </div>
+          <div class="label" id="spot-label">Walking · 0.3 mi to Eckert Bridge</div>
+        </button>
+
+        <!-- AT-STOP — stop hero card replaces the progress bar -->
+        <button class="stop-hero" id="stop-hero" type="button">
+          <div class="sh-img"><img id="sh-img" src="" alt=""></div>
+          <div class="sh-meta">
+            <div class="sh-eyebrow"><span class="sh-arrived">Arrived</span> · <span>Stop <span class="sh-num">1</span> of 5</span></div>
+            <div class="sh-name" id="sh-name">Covered Bridge &amp; Mill</div>
+          </div>
+        </button>
+
+        <!-- BETWEEN / APPROACHING — quiet single-line indicator in the center -->
+        <div class="walking-quiet" id="walking-quiet">
+          <div class="wq-eyebrow" id="wq-eyebrow">Walking to</div>
+          <div class="wq-name" id="wq-name">Layered Cliffs</div>
+          <div class="wq-distance" id="wq-distance">0.4 mi · about 12 minutes</div>
+        </div>
+
+        <div class="lyric" id="lyric">
+          <p class="prev"></p>
+          <p class="now"></p>
+          <p class="next"></p>
+        </div>
+
+        <div class="toast" id="toast">Captured</div>
+
+        <!-- captured photo context strip -->
+        <div class="photo-context" id="photo-context">
+          <img class="pc-thumb"
+               src="https://upload.wikimedia.org/wikipedia/commons/3/3f/Cave_in_McConnell%27s_Mill_State_Park%2C_PA_%281%29.jpg"
+               alt="Captured">
+          <div class="pc-text">
+            <div class="pc-eyebrow"><span class="pc-dot"></span>Photo in context</div>
+            <div class="pc-sub">Hold Ask to follow up about this</div>
+          </div>
+          <button class="pc-dismiss" id="pc-dismiss" aria-label="Dismiss photo">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="ask-transcript" id="ask-transcript">
+          <div class="ask-eyebrow"><span class="ax-dot"></span>Listening</div>
+          <div class="ax-text" id="ax-text"><span class="cursor"></span></div>
+        </div>
+
+        <div class="paused-banner"><span>Paused</span></div>
+
+        <!-- Tour map overlay — full trail, current position highlighted -->
+        <div class="tour-map" id="tour-map">
+          <div class="tm-top">
+            <button class="cv-close" id="tm-close" aria-label="Close map">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <div class="tm-title">
+              <div class="tm-name">Kildoo Trail</div>
+              <div class="tm-loc">Stop 3 of 5 · Kildoo Falls</div>
+            </div>
+            <div style="width:36px;"></div>
+          </div>
+
+          <div class="tm-canvas">
+            <svg class="dm-map" viewBox="0 0 320 540" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+              <g transform="translate(286,38)" opacity="0.55">
+                <text font-size="10" font-weight="800" fill="rgba(245,243,236,0.65)" text-anchor="middle" x="3" y="0">N</text>
+                <line x1="3" y1="6" x2="3" y2="22" stroke="rgba(245,243,236,0.5)" stroke-width="1"/>
+                <polygon points="0,16 3,22 6,16" fill="rgba(245,243,236,0.5)"/>
+              </g>
+
+              <g transform="translate(20,510)" opacity="0.6">
+                <line x1="0" y1="0" x2="60" y2="0" stroke="rgba(245,243,236,0.5)" stroke-width="1.4"/>
+                <line x1="0" y1="-3" x2="0" y2="3" stroke="rgba(245,243,236,0.5)" stroke-width="1.2"/>
+                <line x1="60" y1="-3" x2="60" y2="3" stroke="rgba(245,243,236,0.5)" stroke-width="1.2"/>
+                <text x="30" y="14" font-size="9" font-weight="700" fill="rgba(245,243,236,0.55)" text-anchor="middle" letter-spacing="0.6">¼ MILE</text>
+              </g>
+
+              <g opacity="0.18" fill="rgba(245,243,236,0.6)">
+                <circle cx="50" cy="80" r="0.8"/>
+                <circle cx="80" cy="200" r="0.8"/>
+                <circle cx="60" cy="380" r="0.8"/>
+                <circle cx="260" cy="100" r="0.8"/>
+                <circle cx="270" cy="240" r="0.8"/>
+                <circle cx="250" cy="400" r="0.8"/>
+              </g>
+
+              <!-- Creek -->
+              <path d="M160,52 Q150,100 158,160 Q166,230 152,300 Q148,370 162,440 Q170,490 160,510"
+                    stroke="rgba(140,180,200,0.18)" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.6"/>
+              <path d="M160,52 Q150,100 158,160 Q166,230 152,300 Q148,370 162,440 Q170,490 160,510"
+                    stroke="rgba(140,180,200,0.55)" stroke-width="2.8" fill="none" stroke-linecap="round"/>
+
+              <!-- East trail — passed portion (WP1→WP2→WP3) lime, rest dashed gray -->
+              <path d="M160,80 Q195,105 200,170 Q207,225 210,280"
+                    stroke="rgba(217,245,113,0.7)" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+              <path d="M210,280 Q215,350 195,415 Q175,475 160,498"
+                    stroke="rgba(245,243,236,0.40)" stroke-width="1.5" fill="none"
+                    stroke-dasharray="3,3" stroke-linecap="round"/>
+
+              <!-- West trail — upcoming -->
+              <path d="M160,80 Q125,105 122,180 Q118,240 125,295 Q130,360 140,420 Q150,475 160,498"
+                    stroke="rgba(245,243,236,0.30)" stroke-width="1.5" fill="none"
+                    stroke-dasharray="3,3" stroke-linecap="round"/>
+
+              <!-- WP1 — passed -->
+              <circle cx="160" cy="80" r="13" fill="rgba(217,245,113,0.18)" stroke="rgba(217,245,113,0.6)" stroke-width="1.3"/>
+              <text x="160" y="80" font-size="12" font-weight="800" fill="rgba(217,245,113,0.85)"
+                    text-anchor="middle" dominant-baseline="middle">1</text>
+              <text x="160" y="120" font-size="12" font-weight="700" letter-spacing="0.4"
+                    fill="rgba(245,243,236,0.55)" text-anchor="middle" dominant-baseline="middle"
+                    paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Covered Bridge &amp; Mill</text>
+
+              <!-- WP2 — passed -->
+              <circle cx="200" cy="170" r="13" fill="rgba(217,245,113,0.18)" stroke="rgba(217,245,113,0.6)" stroke-width="1.3"/>
+              <text x="200" y="170" font-size="12" font-weight="800" fill="rgba(217,245,113,0.85)"
+                    text-anchor="middle" dominant-baseline="middle">2</text>
+              <text x="222" y="170" font-size="12" font-weight="700" letter-spacing="0.4"
+                    fill="rgba(245,243,236,0.55)" text-anchor="start" dominant-baseline="middle"
+                    paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Layered Cliffs</text>
+
+              <!-- WP3 — ACTIVE (Kildoo Falls) -->
+              <circle cx="210" cy="280" r="24" fill="#d9f571" opacity="0.20" class="pin-halo"/>
+              <circle cx="210" cy="280" r="16" fill="#d9f571" opacity="0.36" class="pin-halo-2"/>
+              <circle cx="210" cy="280" r="13" fill="#d9f571"/>
+              <text x="210" y="280" font-size="13" font-weight="800" fill="#1a1f0a"
+                    text-anchor="middle" dominant-baseline="middle">3</text>
+              <text x="232" y="280" font-size="12" font-weight="700" letter-spacing="0.4"
+                    fill="rgba(217,245,113,0.95)" text-anchor="start" dominant-baseline="middle"
+                    paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Kildoo Falls</text>
+
+              <!-- WP4 — Eckert Bridge (south crossing, upcoming) -->
+              <circle cx="160" cy="498" r="13" fill="rgba(15,16,13,0.95)" stroke="rgba(245,243,236,0.55)" stroke-width="1.3"/>
+              <text x="160" y="498" font-size="12" font-weight="800" fill="rgba(245,243,236,0.85)"
+                    text-anchor="middle" dominant-baseline="middle">4</text>
+              <text x="160" y="474" font-size="12" font-weight="700" letter-spacing="0.4"
+                    fill="rgba(245,243,236,0.7)" text-anchor="middle" dominant-baseline="middle"
+                    paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Eckert Bridge</text>
+
+              <!-- WP5 — Slippery Rock (west side, last stop on the return) -->
+              <circle cx="125" cy="295" r="13" fill="rgba(15,16,13,0.95)" stroke="rgba(245,243,236,0.55)" stroke-width="1.3"/>
+              <text x="125" y="295" font-size="12" font-weight="800" fill="rgba(245,243,236,0.85)"
+                    text-anchor="middle" dominant-baseline="middle">5</text>
+              <text x="103" y="295" font-size="12" font-weight="700" letter-spacing="0.4"
+                    fill="rgba(245,243,236,0.7)" text-anchor="end" dominant-baseline="middle"
+                    paint-order="stroke" stroke="#0a0c0a" stroke-width="3" stroke-linejoin="round">Slippery Rock</text>
+            </svg>
+          </div>
+
+          <div class="tm-foot">
+            <span class="tm-progress">0.8 of 2.0 mi · 12 min walked</span>
+          </div>
+        </div>
+
+        <!-- popup sheet anchored above the More button -->
+        <div class="more-sheet" id="more-sheet">
+          <button class="ms-item" id="pause-item">
+            <span class="ms-icon">
+              <svg class="i-pause" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="4" y="3" width="3" height="10" rx="1" fill="currentColor"/>
+                <rect x="9" y="3" width="3" height="10" rx="1" fill="currentColor"/>
+              </svg>
+              <svg class="i-play" width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M5 3L13 8L5 13Z" fill="currentColor"/>
+              </svg>
+            </span>
+            <span class="ms-label" id="pause-label">Pause tour</span>
+          </button>
+          <div class="ms-divider"></div>
+          <button class="ms-item ms-item--danger" id="end-item">
+            <span class="ms-icon">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <rect x="3" y="3" width="8" height="8" rx="1" fill="currentColor"/>
+              </svg>
+            </span>
+            <span class="ms-label">End tour</span>
+          </button>
+        </div>
+
+        <div class="walk-controls">
+          <!-- Camera -->
+          <button class="ctrl ctrl--cam" id="cam-btn" aria-label="Take a picture">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+              <path d="M3 7.5C3 6.67 3.67 6 4.5 6H6.5L7.7 4.4C7.9 4.15 8.2 4 8.5 4H13.5C13.8 4 14.1 4.15 14.3 4.4L15.5 6H17.5C18.33 6 19 6.67 19 7.5V16C19 16.83 18.33 17.5 17.5 17.5H4.5C3.67 17.5 3 16.83 3 16V7.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+              <circle cx="11" cy="12" r="3" stroke="currentColor" stroke-width="1.4"/>
+            </svg>
+          </button>
+
+          <!-- Mic (tap to ask) -->
+          <button class="ctrl ctrl--ask" id="ask-btn" aria-label="Tap to ask">
+            <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+              <rect x="11" y="5" width="8" height="14" rx="4" fill="currentColor"/>
+              <path d="M7 14V15C7 18.866 10.134 22 14 22H16C19.866 22 23 18.866 23 15V14"
+                    stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+              <path d="M15 22V25M11 25H19"
+                    stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
+          </button>
+
+          <!-- More (Pause / End) — opens a small sheet -->
+          <button class="ctrl ctrl--more" id="more-btn" aria-label="Pause or end">
+            <svg class="i-pause-glyph" width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <rect x="6" y="4.5" width="3" height="11" rx="1.2" fill="currentColor"/>
+              <rect x="11" y="4.5" width="3" height="11" rx="1.2" fill="currentColor"/>
+            </svg>
+            <svg class="i-play-glyph" width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M6 4L16 10L6 16Z" fill="currentColor"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="cam-flash" id="cam-flash"></div>
+
+        <!-- Camera viewfinder modal -->
+        <div class="camera-view" id="camera-view">
+          <div class="cv-preview">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/3/3f/Cave_in_McConnell%27s_Mill_State_Park%2C_PA_%281%29.jpg" alt="Live preview">
+            <svg class="cv-grid" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <line x1="33.33" y1="0" x2="33.33" y2="100" stroke="white" stroke-opacity="0.18" stroke-width="0.25"/>
+              <line x1="66.66" y1="0" x2="66.66" y2="100" stroke="white" stroke-opacity="0.18" stroke-width="0.25"/>
+              <line x1="0" y1="33.33" x2="100" y2="33.33" stroke="white" stroke-opacity="0.18" stroke-width="0.25"/>
+              <line x1="0" y1="66.66" x2="100" y2="66.66" stroke="white" stroke-opacity="0.18" stroke-width="0.25"/>
+            </svg>
+            <!-- corner brackets to evoke a viewfinder -->
+            <svg class="cv-brackets" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M3,12 L3,3 L12,3" stroke="white" stroke-opacity="0.6" stroke-width="0.6" fill="none"/>
+              <path d="M88,3 L97,3 L97,12" stroke="white" stroke-opacity="0.6" stroke-width="0.6" fill="none"/>
+              <path d="M3,88 L3,97 L12,97" stroke="white" stroke-opacity="0.6" stroke-width="0.6" fill="none"/>
+              <path d="M88,97 L97,97 L97,88" stroke="white" stroke-opacity="0.6" stroke-width="0.6" fill="none"/>
+            </svg>
+          </div>
+
+          <div class="cv-top">
+            <button class="cv-close" id="cv-close" aria-label="Close camera">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <span class="cv-title">Camera</span>
+            <span class="cv-spacer"></span>
+          </div>
+
+          <div class="cv-bottom">
+            <div class="cv-hint">Tap to capture · adds the photo as context</div>
+            <button class="cv-capture" id="cv-capture" aria-label="Capture"></button>
+          </div>
+
+          <div class="cv-flash" id="cv-flash"></div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ========== JOURNAL ========== -->
+    <div class="view" data-view="journal">
+      <div class="journal">
+        <button class="nav-close j-close-fixed" id="close-journal" aria-label="Close">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <div class="j-head">
+          <div class="j-eyebrow">Today</div>
+          <div class="name">Kildoo Trail</div>
+          <div class="date">May 3, 2026 · 2.0 mi · 1 hr 12 min</div>
+        </div>
+        <div class="hero">
+          <div class="photo">
+            <img src="https://upload.wikimedia.org/wikipedia/commons/7/77/McConnells_Mill_State_Park_Bridge.jpg" alt="McConnells Mill covered bridge">
+          </div>
+        </div>
+
+        <div class="stops-list">
+          <div class="j-label">Stops you walked</div>
+
+          <div class="stop">
+            <div class="stop-num">1</div>
+            <div class="stop-body">
+              <div class="stop-name">Covered Bridge &amp; Mill</div>
+              <div class="stop-fact">Built in 1874 — one of two Howe-truss bridges left in Pennsylvania. The mill ground grain here until 1928.</div>
+            </div>
+          </div>
+
+          <div class="stop">
+            <div class="stop-num">2</div>
+            <div class="stop-body">
+              <div class="stop-name">Layered Cliffs</div>
+              <div class="stop-fact">Sandstone laid down 320 million years ago, the orange streaks are iron oxide leached from the rock by groundwater.</div>
+              <div class="stop-qa">
+                <div class="stop-qa-q">"What are the orange streaks on the cliff face?"</div>
+                <div class="stop-qa-a">Iron oxide — leached out of the sandstone by groundwater over a very long time.</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="stop">
+            <div class="stop-num">3</div>
+            <div class="stop-body">
+              <div class="stop-name">Kildoo Falls</div>
+              <div class="stop-fact">The eastern hemlocks above the gorge are roughly three centuries old — older than the country.</div>
+            </div>
+          </div>
+
+          <div class="stop">
+            <div class="stop-num">4</div>
+            <div class="stop-body">
+              <div class="stop-name">Eckert Bridge</div>
+              <div class="stop-fact">South crossing back to the western bank. The creek narrows here — you stayed for ten minutes.</div>
+            </div>
+          </div>
+
+          <div class="stop">
+            <div class="stop-num">5</div>
+            <div class="stop-body">
+              <div class="stop-name">The Slippery Rock</div>
+              <div class="stop-fact">The 80-ton sandstone boulder in the creek that gave the waterway its name.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="saw">
+          <div class="j-label">What you saw</div>
+          <div class="explain">Sightings sync to iNaturalist next time you have signal — they help researchers track what lives where.</div>
+          <ul>
+            <li>Eastern hemlock</li>
+            <li>Great rhododendron, budding</li>
+            <li>Wood thrush — heard, not seen</li>
+          </ul>
+          <div class="send">
+            <button id="share-btn">
+              <span class="share-dot"></span>
+              Share when connected
+            </button>
+            <div class="send-status">3 sightings queued · waiting for signal</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="hint" id="hint">Tap <kbd>Download</kbd> on Kildoo, then tap a trail.</div>
+
+<button class="reset" id="reset">Reset prototype</button>
+
+
+<script>
+  // ---------- view state ----------
+  const views = document.querySelectorAll('.view');
+  let current = 'picker';
+
+  const hints = {
+    picker:  'Tap <kbd>Download</kbd> on Kildoo, then tap a trail.',
+    detail:  'Tap <kbd>Begin</kbd> to start, or the back arrow to return.',
+    walking: 'The app talks at each stop. Tap the <kbd>mic</kbd> to ask · <kbd>camera</kbd> for context · <kbd>•••</kbd> to pause or end.',
+    journal: 'Tap × to return to trails.',
+  };
+
+  function go(name) {
+    current = name;
+    views.forEach(v => v.classList.toggle('is-active', v.dataset.view === name));
+    document.getElementById('hint').innerHTML = hints[name];
+    if (name === 'walking') {
+      startTourCycle();
+    } else {
+      stopTourCycle();
+      stopLyricLoop();
+    }
+  }
+
+  // ---------- picker → detail ----------
+  document.querySelectorAll('.t-card').forEach(card => {
+    card.addEventListener('click', e => {
+      // Don't navigate if the user clicked the download button
+      if (e.target.closest('.dl-btn')) return;
+      go('detail');
+    });
+  });
+
+  // ---------- download flow on Kildoo card ----------
+  let kildooDownloaded = false;
+
+  document.getElementById('dl-kildoo').addEventListener('click', e => {
+    e.stopPropagation();
+    const btn = e.currentTarget;
+    if (btn.dataset.state !== 'idle') return;
+    runDownload(btn);
+  });
+
+  function runDownload(btn) {
+    btn.dataset.state = 'downloading';
+    const fill = btn.querySelector('.dl-fill');
+    const text = btn.querySelector('.dl-text');
+    const icon = btn.querySelector('.dl-icon');
+    icon.style.display = 'none';
+    let pct = 0;
+    text.textContent = '0%';
+    const tick = setInterval(() => {
+      pct = Math.min(100, pct + 6 + Math.random() * 7);
+      btn.style.setProperty('--dl-pct', pct + '%');
+      text.textContent = Math.round(pct) + '%';
+      if (pct >= 100) {
+        clearInterval(tick);
+        setTimeout(() => completeDownload(btn), 250);
+      }
+    }, 110);
+  }
+
+  function completeDownload(btn) {
+    kildooDownloaded = true;
+    const wrap = document.getElementById('kildoo-status');
+    wrap.innerHTML = '<div class="badge ready"><span class="dot"></span>Downloaded</div>';
+  }
+
+  // ---------- detail → picker | begin ----------
+  document.getElementById('back-to-picker').addEventListener('click', e => {
+    e.stopPropagation();
+    go('picker');
+  });
+  document.getElementById('begin').addEventListener('click', () => go('walking'));
+
+  // ---------- journal → picker ----------
+  document.getElementById('close-journal').addEventListener('click', () => go('picker'));
+  document.getElementById('open-journal').addEventListener('click', () => go('journal'));
+
+  // ---------- tour data: per-stop content ----------
+  const stopData = [
+    {
+      num: 1, name: 'Covered Bridge & Mill',
+      img: 'https://upload.wikimedia.org/wikipedia/commons/7/77/McConnells_Mill_State_Park_Bridge.jpg',
+      sentences: [
+        "The covered bridge dates to 1874.",
+        "Howe truss design — one of two left in Pennsylvania.",
+        "The mill ground grain here until 1928.",
+      ]
+    },
+    {
+      num: 2, name: 'Layered Cliffs',
+      img: 'https://upload.wikimedia.org/wikipedia/commons/c/cc/Woodlands_around_McConnell%27s_Mill_State_Park.jpg',
+      sentences: [
+        "Sandstone laid down 320 million years ago.",
+        "The orange streaks are iron oxide.",
+        "Groundwater carries it out of the rock.",
+      ]
+    },
+    {
+      num: 3, name: 'Kildoo Falls',
+      img: 'https://upload.wikimedia.org/wikipedia/commons/2/22/Hell%27s_Hollow_Falls.JPG',
+      sentences: [
+        "The water has been falling here a long time.",
+        "Listen. The creek does most of the work.",
+        "Above you, hemlocks lean over the gorge.",
+        "Some of them are three centuries old.",
+      ]
+    },
+    {
+      num: 4, name: 'Eckert Bridge',
+      img: 'https://upload.wikimedia.org/wikipedia/commons/3/34/McConnells_Mill_Bridge_and_Creek.jpg',
+      sentences: [
+        "Eckert Bridge crosses Slippery Rock Creek here.",
+        "The trail returns north along the western bank.",
+        "The creek narrows and quickens through the gorge.",
+      ]
+    },
+    {
+      num: 5, name: 'Slippery Rock',
+      img: 'https://upload.wikimedia.org/wikipedia/commons/2/26/McConnells_Mill_State_Park_Scenery_01.jpg',
+      sentences: [
+        "An eighty-ton sandstone boulder in the creek.",
+        "It gave the waterway its name.",
+        "Algae makes it slick — hence slippery.",
+      ]
+    },
+  ];
+
+  // ---------- lyric loop ----------
+  let trailSentences = stopData[2].sentences.slice(); // start at Kildoo Falls
+  const photoSentences = [
+    "A small cave worn into the sandstone wall.",
+    "This rock is part of the Sharon Conglomerate.",
+    "Pebbles in the stone were carried here by an ancient river.",
+    "Layers like these were laid down 320 million years ago.",
+  ];
+  const trailQuestions = [
+    "How old are these hemlocks?",
+    "What kind of bird is that?",
+    "Where does this creek flow to?",
+    "What carved this gorge?",
+  ];
+  const photoQuestions = [
+    "How was this cave formed?",
+    "What kind of rock is this?",
+    "Could anything live in here?",
+    "Is it safe to go inside?",
+  ];
+
+  let inPhotoContext = false;
+  function activeSentences() { return inPhotoContext ? photoSentences : trailSentences; }
+  function activeQuestions() { return inPhotoContext ? photoQuestions : trailQuestions; }
+
+  const lyricEl = document.getElementById('lyric');
+  let lyricIdx = 0;
+  let lyricTimer = null;
+  let isHolding = false;
+
+  function renderLyric() {
+    const s = activeSentences();
+    const n = s.length;
+    lyricEl.querySelector('.prev').textContent = s[(lyricIdx - 1 + n) % n];
+    lyricEl.querySelector('.now').textContent  = s[lyricIdx];
+    lyricEl.querySelector('.next').textContent = s[(lyricIdx + 1) % n];
+  }
+  function tick() {
+    if (isHolding) return;
+    lyricEl.classList.add('is-fading');
+    setTimeout(() => {
+      lyricIdx = (lyricIdx + 1) % activeSentences().length;
+      renderLyric();
+      lyricEl.classList.remove('is-fading');
+    }, 600);
+  }
+  function startLyricLoop() {
+    stopLyricLoop();
+    renderLyric();
+    lyricTimer = setInterval(tick, 4500);
+  }
+  function stopLyricLoop() {
+    if (lyricTimer) clearInterval(lyricTimer);
+    lyricTimer = null;
+  }
+
+  // ---------- tour journey state machine ----------
+  // Cycles: at-stop (image + narration) → between (walking) → approaching (pulse) → next stop
+  // Demo starts at the first stop and walks the full sequence.
+  let currentStopIdx = 0;        // start at Covered Bridge & Mill (stop 1)
+  let tourState = 'at-stop';
+  let stateTimer = null;
+  const AT_STOP_MS     = 9000;
+  const BETWEEN_MS     = 5000;
+  const APPROACHING_MS = 3000;
+  const SEGMENT_DISTANCES = ['0.4 mi · about 12 minutes',
+                             '0.4 mi · about 11 minutes',
+                             '0.3 mi · about 9 minutes',
+                             '0.5 mi · about 14 minutes',
+                             '0.4 mi · back to the mill'];
+
+  // % positions of the 5 stops along the spots line
+  const STOP_POS = [12, 32, 50, 70, 88];
+
+  function setMarkers(phase) {
+    const markers = document.querySelectorAll('.spots .marker');
+    const next = (currentStopIdx + 1) % stopData.length;
+    markers.forEach((m, i) => {
+      m.classList.remove('passed', 'active', 'upcoming', 'approaching');
+      if (phase === 'at') {
+        if (i < currentStopIdx) m.classList.add('passed');
+        else if (i === currentStopIdx) m.classList.add('active');
+        else m.classList.add('upcoming');
+      } else if (phase === 'between') {
+        if (i <= currentStopIdx) m.classList.add('passed');
+        else m.classList.add('upcoming');
+      } else if (phase === 'approaching') {
+        if (i <= currentStopIdx) m.classList.add('passed');
+        else if (i === next) m.classList.add('approaching');
+        else m.classList.add('upcoming');
+      }
+    });
+  }
+
+  function setPin(percent, ms) {
+    const pin = document.getElementById('position-pin');
+    pin.style.transition = ms > 0 ? `left ${ms}ms linear` : 'none';
+    pin.style.left = percent + '%';
+  }
+
+  function applyStop(idx) {
+    const stop = stopData[idx];
+    document.getElementById('sh-img').src = stop.img;
+    document.getElementById('sh-name').textContent = stop.name;
+    document.querySelector('.sh-num').textContent = stop.num;
+    // swap narration sentences for this stop
+    trailSentences = stop.sentences.slice();
+    lyricIdx = 0;
+  }
+
+  function setLabel(text) {
+    const el = document.getElementById('spot-label');
+    if (el) el.textContent = text;
+  }
+
+  function enterAtStop() {
+    tourState = 'at-stop';
+    walkingEl.dataset.tourState = 'at-stop';
+    applyStop(currentStopIdx);
+    setMarkers('at');
+    setPin(STOP_POS[currentStopIdx], 0);
+    const stop = stopData[currentStopIdx];
+    setLabel(`${stop.name} · Stop ${stop.num} of 5`);
+    if (!isPaused) startLyricLoop();
+  }
+
+  function enterBetween() {
+    tourState = 'between';
+    walkingEl.dataset.tourState = 'between';
+    stopLyricLoop();
+    setMarkers('between');
+    const next = (currentStopIdx + 1) % stopData.length;
+    const nextStop = stopData[next];
+    const dist = SEGMENT_DISTANCES[currentStopIdx];
+    setLabel(`Walking · ${dist.split(' · ')[0]} to ${nextStop.name}`);
+    document.getElementById('wq-eyebrow').textContent = 'Walking to';
+    document.getElementById('wq-name').textContent = nextStop.name;
+    document.getElementById('wq-distance').textContent = dist;
+    // pin animates over the full between+approaching window
+    setPin(STOP_POS[currentStopIdx], 0);
+    requestAnimationFrame(() => {
+      setPin(STOP_POS[next], BETWEEN_MS + APPROACHING_MS - 200);
+    });
+  }
+
+  function enterApproaching() {
+    tourState = 'approaching';
+    walkingEl.dataset.tourState = 'approaching';
+    setMarkers('approaching');
+    const next = (currentStopIdx + 1) % stopData.length;
+    setLabel(`Approaching · ${stopData[next].name}`);
+    document.getElementById('wq-eyebrow').textContent = 'Approaching';
+    document.getElementById('wq-name').textContent = stopData[next].name;
+    // pin keeps animating from the between transition
+  }
+
+  function scheduleNext() {
+    clearTimeout(stateTimer);
+    if (isPaused) return;
+    let delay;
+    if (tourState === 'at-stop') delay = AT_STOP_MS;
+    else if (tourState === 'between') delay = BETWEEN_MS;
+    else delay = APPROACHING_MS;
+    stateTimer = setTimeout(() => {
+      if (isPaused) return;
+      if (tourState === 'at-stop') enterBetween();
+      else if (tourState === 'between') enterApproaching();
+      else {
+        currentStopIdx = (currentStopIdx + 1) % stopData.length;
+        enterAtStop();
+      }
+      scheduleNext();
+    }, delay);
+  }
+
+  function startTourCycle() {
+    enterAtStop();
+    scheduleNext();
+  }
+  function stopTourCycle() {
+    clearTimeout(stateTimer);
+    stateTimer = null;
+  }
+  function resetTourCycle() {
+    stopTourCycle();
+    currentStopIdx = 2;
+    enterAtStop();
+    scheduleNext();
+  }
+
+  // ---------- walking controls ----------
+  const walkingEl = document.getElementById('walking');
+  const askBtn    = document.getElementById('ask-btn');
+  const camBtn    = document.getElementById('cam-btn');
+  const moreBtn   = document.getElementById('more-btn');
+  const spotsBtn  = document.getElementById('spots-btn');
+  const tourMap   = document.getElementById('tour-map');
+  const tmClose   = document.getElementById('tm-close');
+
+  // Tap progress bar OR stop hero → show full trail map
+  function openTourMap(e) {
+    e.stopPropagation();
+    tourMap.classList.add('is-shown');
+  }
+  spotsBtn.addEventListener('click', openTourMap);
+  document.getElementById('stop-hero').addEventListener('click', openTourMap);
+  tmClose.addEventListener('click', e => {
+    e.stopPropagation();
+    tourMap.classList.remove('is-shown');
+  });
+  const moreSheet = document.getElementById('more-sheet');
+  const pauseItem = document.getElementById('pause-item');
+  const pauseLabel= document.getElementById('pause-label');
+  const endItem   = document.getElementById('end-item');
+  const camFlash  = document.getElementById('cam-flash');
+  const toastEl   = document.getElementById('toast');
+
+  // ---------- live question transcript (typewriter while holding) ----------
+  const axText = document.getElementById('ax-text');
+  let askSampleIdx = 0;
+  let askTypeTimer = null;
+
+  function startAskTranscript() {
+    stopAskTranscript();
+    const qs = activeQuestions();
+    const q = qs[askSampleIdx % qs.length];
+    askSampleIdx++;
+    let i = 0;
+    axText.innerHTML = '<span class="cursor"></span>';
+    askTypeTimer = setInterval(() => {
+      i++;
+      axText.innerHTML = q.slice(0, i) + '<span class="cursor"></span>';
+      if (i >= q.length) {
+        clearInterval(askTypeTimer);
+        askTypeTimer = null;
+      }
+    }, 65);
+  }
+  function stopAskTranscript() {
+    if (askTypeTimer) { clearInterval(askTypeTimer); askTypeTimer = null; }
+  }
+
+  // ---------- Mic — tap to toggle listening ----------
+  askBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (isHolding) deactivateMic();
+    else activateMic();
+  });
+  function activateMic() {
+    isHolding = true;
+    walkingEl.classList.add('is-holding');
+    askBtn.classList.add('is-holding');
+    startAskTranscript();
+    closeMoreSheet();
+  }
+  function deactivateMic() {
+    isHolding = false;
+    walkingEl.classList.remove('is-holding');
+    askBtn.classList.remove('is-holding');
+    stopAskTranscript();
+  }
+
+  // ---------- More menu (Pause + End) ----------
+  function openMoreSheet() {
+    moreSheet.classList.add('is-shown');
+    moreBtn.classList.add('is-open');
+  }
+  function closeMoreSheet() {
+    moreSheet.classList.remove('is-shown');
+    moreBtn.classList.remove('is-open');
+  }
+  moreBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (moreSheet.classList.contains('is-shown')) closeMoreSheet();
+    else openMoreSheet();
+  });
+  // dismiss on outside tap
+  document.addEventListener('click', e => {
+    if (!moreSheet.contains(e.target) && e.target !== moreBtn && !moreBtn.contains(e.target)) {
+      closeMoreSheet();
+    }
+  });
+
+  // ---------- Pause toggle ----------
+  let isPaused = false;
+  pauseItem.addEventListener('click', e => {
+    e.stopPropagation();
+    isPaused = !isPaused;
+    if (isPaused) {
+      walkingEl.classList.add('is-paused');
+      pauseItem.classList.add('is-paused');
+      pauseLabel.textContent = 'Resume tour';
+      stopLyricLoop();
+      stopTourCycle();
+    } else {
+      walkingEl.classList.remove('is-paused');
+      pauseItem.classList.remove('is-paused');
+      pauseLabel.textContent = 'Pause tour';
+      if (tourState === 'at-stop') startLyricLoop();
+      scheduleNext();
+    }
+    closeMoreSheet();
+  });
+
+  // Camera — opens viewfinder; capture inside viewfinder fires the photo + context
+  const photoContextEl = document.getElementById('photo-context');
+  const cameraView = document.getElementById('camera-view');
+  const cvCloseBtn = document.getElementById('cv-close');
+  const cvCaptureBtn = document.getElementById('cv-capture');
+  const cvFlash = document.getElementById('cv-flash');
+
+  function openCamera() {
+    cameraView.classList.add('is-shown');
+  }
+  function closeCamera() {
+    cameraView.classList.remove('is-shown');
+  }
+
+  camBtn.addEventListener('click', openCamera);
+  cvCloseBtn.addEventListener('click', closeCamera);
+
+  cvCaptureBtn.addEventListener('click', () => {
+    cvCaptureBtn.classList.add('is-firing');
+    cvFlash.classList.remove('is-flashing');
+    void cvFlash.offsetWidth;
+    cvFlash.classList.add('is-flashing');
+    setTimeout(() => {
+      cvCaptureBtn.classList.remove('is-firing');
+      closeCamera();
+      showToast('Captured');
+      setTimeout(enterPhotoContext, 280);
+    }, 260);
+  });
+
+  function enterPhotoContext() {
+    inPhotoContext = true;
+    askSampleIdx = 0;
+    lyricIdx = 0;
+    photoContextEl.classList.add('is-shown');
+    // immediately fade lyric to new content
+    lyricEl.classList.add('is-fading');
+    setTimeout(() => {
+      renderLyric();
+      lyricEl.classList.remove('is-fading');
+    }, 350);
+    // restart the loop so timing aligns with the new content
+    startLyricLoop();
+  }
+
+  function exitPhotoContext() {
+    inPhotoContext = false;
+    askSampleIdx = 0;
+    lyricIdx = 0;
+    photoContextEl.classList.remove('is-shown');
+    lyricEl.classList.add('is-fading');
+    setTimeout(() => {
+      renderLyric();
+      lyricEl.classList.remove('is-fading');
+    }, 350);
+    startLyricLoop();
+  }
+
+  document.getElementById('pc-dismiss').addEventListener('click', exitPhotoContext);
+  function showToast(text) {
+    toastEl.textContent = text;
+    toastEl.classList.add('is-shown');
+    clearTimeout(window._tt);
+    window._tt = setTimeout(() => toastEl.classList.remove('is-shown'), 1400);
+  }
+
+  // End the tour
+  endItem.addEventListener('click', e => {
+    e.stopPropagation();
+    inPhotoContext = false;
+    photoContextEl.classList.remove('is-shown');
+    isPaused = false;
+    walkingEl.classList.remove('is-paused');
+    pauseItem.classList.remove('is-paused');
+    pauseLabel.textContent = 'Pause tour';
+    if (isHolding) deactivateMic();
+    closeMoreSheet();
+    go('journal');
+  });
+
+  // Share sightings (citizen science queue)
+  document.body.addEventListener('click', e => {
+    const btn = e.target.closest('#share-btn');
+    if (!btn) return;
+    if (btn.classList.contains('is-shared')) return;
+    btn.classList.add('is-shared');
+    btn.innerHTML = '<span class="share-dot"></span>Queued for iNaturalist';
+    const status = btn.parentElement.querySelector('.send-status');
+    if (status) status.textContent = 'Will sync when you have signal';
+  });
+
+  // ---------- reset ----------
+  document.getElementById('reset').addEventListener('click', () => {
+    lyricIdx = 0;
+    currentStopIdx = 2;
+    tourState = 'at-stop';
+    isPaused = false;
+    walkingEl.classList.remove('is-paused');
+    pauseItem.classList.remove('is-paused');
+    kildooDownloaded = false;
+    // restore download button on kildoo
+    const wrap = document.getElementById('kildoo-status');
+    wrap.innerHTML = `
+      <button class="dl-btn" id="dl-kildoo" data-state="idle">
+        <span class="dl-fill"></span>
+        <span class="dl-icon">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+            <path d="M5 1V7M5 7L2.5 4.5M5 7L7.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M1.5 9H8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="dl-text">Download · 68 MB</span>
+      </button>`;
+    // reattach handler
+    document.getElementById('dl-kildoo').addEventListener('click', e => {
+      e.stopPropagation();
+      const btn = e.currentTarget;
+      if (btn.dataset.state !== 'idle') return;
+      runDownload(btn);
+    });
+    go('picker');
+  });
+
+  // ---------- live clock for status bar ----------
+  function updateClock() {
+    const d = new Date();
+    const h = d.getHours();
+    const m = d.getMinutes().toString().padStart(2, '0');
+    const hh = ((h % 12) || 12);
+    document.getElementById('time').textContent = `${hh}:${m}`;
+  }
+  updateClock();
+  setInterval(updateClock, 30000);
+
+  go('picker');
+</script>
+
+</body>
+</html>

@@ -77,8 +77,14 @@ targets:
         product: MLXUtilsLibrary
         embed: false
       # Gemma 4 stack via mlx-swift-lm.
+      # MLXLLM = text-only loader, smaller MLX active footprint.
+      # MLXVLM = vision-language loader, used when the user attached a
+      # photo to their question (Phase 3b). GemmaService dispatches per
+      # turn so text-only Asks don't pay vision-tower memory.
       - package: mlx-swift-lm
         product: MLXLLM
+      - package: mlx-swift-lm
+        product: MLXVLM
       - package: mlx-swift-lm
         product: MLXLMCommon
       - package: mlx-swift-lm
@@ -100,7 +106,7 @@ targets:
         CFBundleShortVersionString: "0.2.0"
         CFBundleVersion: "1"
         UILaunchScreen:
-          UIColorName: AccentColor
+          UIColorName: LaunchBg
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         UIRequiredDeviceCapabilities:
@@ -110,6 +116,8 @@ targets:
         # Phase 2: voice input. Both required by SFSpeechRecognizer on iOS.
         NSMicrophoneUsageDescription: "HikeCompanion uses the microphone to hear your questions about the trail."
         NSSpeechRecognitionUsageDescription: "HikeCompanion converts your spoken questions into text for the assistant. All recognition happens on-device."
+        # Phase 3a: camera capture for "what is this?" follow-ups.
+        NSCameraUsageDescription: "HikeCompanion uses the camera so you can show what you're looking at when you ask a question."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.lijuncheng16.HikeCompanion

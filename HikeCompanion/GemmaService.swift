@@ -1,28 +1,44 @@
 // GemmaService.swift
 // Wraps mlx-swift-lm's `ChatSession` over Gemma 4 E2B (INT4 quantized,
-// ~3.5 GB).
+// ~2.8 GB on disk after audio-tower strip).
 //
-// LIFECYCLE:
+// DUAL-MODE LOADER (Phase 3b)
+// ---------------------------
+// We can load Gemma in two flavours:
+//
+//   .text  → MLXLLM.LLMModelFactory  (filters vision + audio at sanitize() →
+//            ~2.5 GB MLX active, ~10–30 s cold load)
+//   .vlm   → MLXVLM.VLMModelFactory  (filters audio only; keeps vision tower →
+//            ~3.2 GB MLX active, ~13–37 s cold load)
+//
+// Each Ask calls `loadIfNeeded(kind)` with the kind appropriate for the
+// turn (text-only vs. has-photo). If a different kind is currently
+// loaded, we unload it first. After the response streams + Kokoro
+// speaks, we unload to bring memory back to ~100 MB idle, same as the
+// text-only flow we shipped earlier.
+//
+// LIFECYCLE
+// ---------
 //   • Lazy load on first Ask. App launches with only Kokoro resident.
-//   • Unloaded after each generation completes (caller's responsibility
-//     to call `unload()`) — keeping Gemma resident while Kokoro does
-//     TTS crashed the app even on iPhone 17 Pro.
-//   • Conversation history is persisted in this service across
-//     unload/reload cycles, so it survives the per-turn drop. On the
-//     next Ask, the full history is replayed into a fresh ChatSession
-//     so Gemma can resolve "they", "that", etc. across turns.
+//   • Unloaded after each generation completes (caller's responsibility).
+//   • Conversation history is preserved as plain text across loads, so a
+//     follow-up text Ask after an image Ask still has context — Gemma
+//     just doesn't see the image bytes again, only the text it produced
+//     last turn.
 //   • `reset()` wipes history without unloading.
 //
-// COST:
-//   • Each Ask after the first pays a 10–30 s reload again. Multi-turn
+// COST
+// ----
+//   • Each Ask after the first pays a 10–37 s reload again. Multi-turn
 //     coherence preserved; memory bounded between turns.
 //
-// HISTORY (uncapped for now):
+// HISTORY (capped at 20 messages = 10 turns)
 //   • Every (user, assistant) pair appended after stream completion.
-//   • A long conversation will grow KV cache during generation since
-//     we replay the whole history. Add a turn cap if it becomes an
-//     issue. For typical hike-Q&A turns this should be fine.
+//   • Replay during prefill keeps the KV cache transient. At ~100
+//     tokens/turn for Q&A, prefill is ~3–5 s on iPhone — small compared
+//     to the load.
 
+import CoreImage
 import Foundation
 import HuggingFace
 import Hub
@@ -30,16 +46,26 @@ import MLX
 import MLXHuggingFace
 import MLXLLM
 import MLXLMCommon
+import MLXVLM
 import Tokenizers
+import UIKit
 
 @MainActor
 final class GemmaService: ObservableObject {
+
+    // MARK: - Loaded kind
+
+    enum LoadedKind: String, Equatable {
+        case text   // MLXLLM Gemma 4 (text-only path, ~2.5 GB MLX active)
+        case vlm    // MLXVLM Gemma 4 (text + vision tower, ~3.2 GB MLX active)
+    }
 
     // MARK: - Published state
 
     @Published private(set) var status: String = "Idle (Gemma loads on first Ask)"
     @Published private(set) var isLoaded: Bool = false
     @Published private(set) var historyTurnCount: Int = 0
+    @Published private(set) var loadedKind: LoadedKind?
 
     // MARK: - Internals
 
@@ -48,20 +74,6 @@ final class GemmaService: ObservableObject {
 
     /// Cap on stored history. Each (user, assistant) pair is 2 messages,
     /// so 20 = 10 turns of context. Past this, oldest messages drop off.
-    ///
-    /// Trade-off: each follow-up Ask pays a prefill cost proportional to
-    /// total history length. At 10 turns of typical Q&A (~100 tokens
-    /// each) that's ~3–5 s of prefill on Gemma 4 E2B over MLX on iPhone
-    /// — small compared to the 10–30 s Gemma reload that already
-    /// dominates each Ask.
-    ///
-    /// Memory: prefill KV cache for 1000 tokens ≈ 115 KB × 1000 = 115 MB
-    /// transient peak during prefill, on top of the ~2.5 GB Gemma weights.
-    /// Fits comfortably under iPhone 17 Pro's jetsam ceiling.
-    ///
-    /// Earlier history cap of 4 (2 turns) was set before the Kokoro
-    /// lazy-load fix freed ~500 MB at peak; the headroom now allows
-    /// longer memory.
     private let maxHistoryMessages = 20
 
     private let systemInstructions = """
@@ -74,9 +86,12 @@ final class GemmaService: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// Load the model into memory. Idempotent.
-    func loadIfNeeded() async throws {
-        guard modelContainer == nil else { return }
+    /// Load the model into memory in the requested mode. Idempotent if
+    /// the requested kind matches what's already loaded; otherwise
+    /// unloads the existing model first.
+    func loadIfNeeded(_ kind: LoadedKind) async throws {
+        if loadedKind == kind, modelContainer != nil { return }
+        if modelContainer != nil { unload() }
 
         let modelDir = Bundle.main.bundleURL
             .appendingPathComponent("Models")
@@ -87,22 +102,37 @@ final class GemmaService: ObservableObject {
             throw GemmaError.modelMissing
         }
 
-        status = "Loading Gemma 4 (10–30 s)…"
-        modelContainer = try await loadModelContainer(
-            from: modelDir,
-            using: #huggingFaceTokenizerLoader()
-        )
+        switch kind {
+        case .text:
+            MemoryStats.log("gemma.load start (text)")
+            status = "Loading Gemma 4 text (10–30 s)…"
+            modelContainer = try await LLMModelFactory.shared.loadContainer(
+                from: modelDir,
+                using: #huggingFaceTokenizerLoader()
+            )
+        case .vlm:
+            MemoryStats.log("gemma.load start (vlm)")
+            status = "Loading Gemma 4 multimodal (13–37 s)…"
+            modelContainer = try await VLMModelFactory.shared.loadContainer(
+                from: modelDir,
+                using: #huggingFaceTokenizerLoader()
+            )
+        }
+
+        loadedKind = kind
         isLoaded = true
-        status = "Gemma 4 loaded"
+        status = "Gemma 4 loaded (\(kind.rawValue))"
+        MemoryStats.log("gemma.load done (\(kind.rawValue))")
     }
 
-    /// Drop the model from memory. Use sparingly — reload costs 10–30 s.
-    /// Conversation history is preserved across unload/reload.
+    /// Drop the model from memory. Conversation history is preserved.
     func unload() {
         modelContainer = nil
         isLoaded = false
+        loadedKind = nil
         Memory.clearCache()
         status = "Gemma unloaded (history kept; next Ask will reload)"
+        MemoryStats.log("gemma.unload done")
     }
 
     /// Wipe the conversation history. Does not unload the model.
@@ -114,14 +144,33 @@ final class GemmaService: ObservableObject {
 
     // MARK: - Inference
 
-    /// Stream Gemma's response, with conversation history replayed so
-    /// follow-ups can reference prior turns. Appends the (prompt, full
-    /// response) pair to history after the stream completes.
-    func streamResponse(to prompt: String) -> AsyncThrowingStream<String, Error>? {
+    /// Stream Gemma's response. If `image` is non-nil the caller must
+    /// have called `loadIfNeeded(.vlm)` first (or this method will
+    /// return nil). Conversation history is replayed each call.
+    ///
+    /// On stream completion, the (prompt, full response) pair is appended
+    /// to history, capped at `maxHistoryMessages`.
+    func streamResponse(prompt: String, image: UIImage? = nil)
+        -> AsyncThrowingStream<String, Error>?
+    {
         guard let container = modelContainer else { return nil }
 
-        // Snapshot current history (already capped to last `maxHistoryMessages`);
-        // ChatSession will consume it.
+        // Validate mode/kind/image alignment.
+        if image != nil, loadedKind != .vlm {
+            // Caller mismatched kinds — the text loader has no vision
+            // tower so encoding the image would crash inside MLX.
+            return nil
+        }
+
+        // Convert UIImage → UserInput.Image.ciImage for the VLM path.
+        let imageInputs: [UserInput.Image]
+        if let image, let ci = Self.ciImage(from: image) {
+            imageInputs = [.ciImage(ci)]
+        } else {
+            imageInputs = []
+        }
+
+        // Snapshot history (already capped).
         let historySnapshot = conversationHistory
 
         let session = ChatSession(
@@ -135,11 +184,21 @@ final class GemmaService: ObservableObject {
             Task { @MainActor in
                 var fullText = ""
                 do {
-                    for try await chunk in session.streamResponse(to: prompt) {
+                    let label = imageInputs.isEmpty ? "text" : "image"
+                    MemoryStats.log("gemma.stream start (\(label))")
+                    for try await chunk in session.streamResponse(
+                        to: prompt,
+                        images: imageInputs,
+                        videos: []
+                    ) {
                         fullText += chunk
                         continuation.yield(chunk)
                     }
-                    // Persist the turn, then trim the buffer.
+                    MemoryStats.log("gemma.stream done (\(label))")
+
+                    // Persist the turn (text only — image bytes don't go
+                    // into history; the assistant's text response is
+                    // what carries forward).
                     self.conversationHistory.append(.init(role: .user, content: prompt))
                     self.conversationHistory.append(.init(role: .assistant, content: fullText))
                     while self.conversationHistory.count > self.maxHistoryMessages {
@@ -152,6 +211,20 @@ final class GemmaService: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - UIImage → CIImage helper
+
+    /// Convert a `UIImage` into a `CIImage` suitable for
+    /// `UserInput.Image.ciImage`. Falls back through the available
+    /// representations: prefer the embedded CIImage if present, then
+    /// the CGImage, otherwise nil. The captured photos in this app come
+    /// from AVCaptureSession via UIImage(data: jpegData), so they
+    /// always have a valid `cgImage` — the fallthrough is paranoia.
+    private static func ciImage(from image: UIImage) -> CIImage? {
+        if let ci = image.ciImage { return ci }
+        if let cg = image.cgImage { return CIImage(cgImage: cg) }
+        return nil
     }
 }
 

@@ -20,6 +20,14 @@ struct HikeCompanionApp: App {
         // Cache limit kept small — this is just kernel scratch space, not
         // tensor storage.
         Memory.cacheLimit = 100 * 1024 * 1024
+
+        // Start the [Mem] console ticker (5 s steady-state) once the run
+        // loop is up. Filter the Xcode debug console for "[Mem]" to see
+        // a live memory profile alongside event-driven prints from
+        // GemmaService / ValidationRunner / CameraController.
+        DispatchQueue.main.async {
+            MemoryProbe.shared.start()
+        }
     }
 
     var body: some Scene {

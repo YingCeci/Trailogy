@@ -19,6 +19,9 @@ external/**/Package.resolved
 HikeCompanion/Resources/Models/*
 !HikeCompanion/Resources/Models/README.md
 
+# Strip-script backups — kept locally as a safety net, never committed
+scripts/backups/
+
 # macOS
 .DS_Store
 

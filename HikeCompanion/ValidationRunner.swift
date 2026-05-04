@@ -156,6 +156,7 @@ final class ValidationRunner: ObservableObject {
             self.status = "Loading Kokoro…"
             self.currentCaption = ""
             self.stopCaptionTimer()
+            MemoryStats.log("kokoro.synthesize start")
         }
 
         workQueue.async { [weak self] in
@@ -166,7 +167,10 @@ final class ValidationRunner: ObservableObject {
                 try self.ensureModelLoaded()
                 guard let tts = self.tts else { throw RunnerError.modelMissing }
 
-                DispatchQueue.main.async { self.status = "Synthesising…" }
+                DispatchQueue.main.async {
+                    self.status = "Synthesising…"
+                    MemoryStats.log("kokoro.model loaded")
+                }
                 let language: Language = (voiceKey.first == "a") ? .enUS : .enGB
                 let chunks = Self.splitForSynthesis(text)
 
@@ -242,6 +246,7 @@ final class ValidationRunner: ObservableObject {
                         rtf, rtf > 0 ? 1.0 / rtf : 0, audioDur, wallTime, chunkSuffix
                     )
                     self.isRunning = false
+                    MemoryStats.log("kokoro.synthesize done")
                 }
 
                 self.captionTokens = allCaptionTokens
@@ -277,6 +282,7 @@ final class ValidationRunner: ObservableObject {
                 // The just-completed synth's RTF is preserved in
                 // `lastResult` for the "Last TTS run" section.
                 self.status = "Idle"
+                MemoryStats.log("kokoro.unload done")
             }
         }
     }
