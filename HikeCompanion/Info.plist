@@ -20,6 +20,8 @@
 	<string>0.2.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSCameraUsageDescription</key>
+	<string>HikeCompanion uses the camera so you can show what you're looking at when you ask a question.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>HikeCompanion uses the microphone to hear your questions about the trail.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
@@ -32,7 +34,7 @@
 	<key>UILaunchScreen</key>
 	<dict>
 		<key>UIColorName</key>
-		<string>AccentColor</string>
+		<string>LaunchBg</string>
 	</dict>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>

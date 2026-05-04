@@ -8,7 +8,9 @@ iOS app for the **Kaggle Gemma 4 for Good** hackathon. The product idea is a
 "hike companion" that explains what hikers see in front of them — geology,
 plants, climate change in national parks. Everything runs **on-device**:
 
-- **Gemma 4 E2B** (INT4, ~3.5 GB on disk, ~2.5 GB MLX active) for the LLM
+- **Gemma 4 E2B** (INT4, ~2.8 GB on disk, ~2.5 GB MLX active) for the LLM
+  — checkpoint is the multimodal `mlx-community/gemma-4-e2b-it-4bit`,
+    audio tower stripped via `scripts/strip-gemma-audio.py` (see below)
 - **Kokoro 82M** (FP32 safetensors, ~327 MB) for TTS
 - **SFSpeechRecognizer** (Apple, on-device) for voice input
 
@@ -169,14 +171,42 @@ git clone --recurse-submodules git@github.com:YingCeci/hikeCompanion.git
 # the recurse flag harmless if we ever switch back)
 cd hikeCompanion
 
-bash scripts/fetch-models.sh    # Kokoro: ~630 MB
-bash scripts/fetch-gemma.sh     # Gemma 4 E2B: ~3.5 GB. Add --backup for unsloth fallback.
+bash scripts/fetch-models.sh           # Kokoro: ~630 MB
+bash scripts/fetch-gemma.sh            # Gemma 4 E2B: ~3.4 GB. Add --backup for unsloth fallback.
+python3 scripts/strip-gemma-audio.py   # Optional: strips ~580 MB of unused audio-tower weights
 bash scripts/generate-project.sh
 
 open HikeCompanion.xcodeproj
 # In Xcode: trust macros when prompted; set Development Team in Signing & Capabilities
 # ⌘R to a real iPhone (≥ iPhone 15 Pro / iOS 18). Simulator does not have MLX.
 ```
+
+### Audio-tower strip (why ~2.8 GB instead of ~3.4 GB)
+
+The HF checkpoint is the **multimodal** Gemma 4 E2B — it carries
+language_model + vision_tower + audio_tower. mlx-swift-lm filters audio
+weights at sanitize() time (in both MLXLLM and MLXVLM Gemma 4 loaders),
+so they're never used by the iPhone runtime. `scripts/strip-gemma-audio.py`
+reads `model.safetensors` and writes a new file without the 754
+`audio_tower.*` / `embed_audio.*` tensors — saves ~583 MB on disk with
+zero functional impact.
+
+The script keeps a `.audio.bak` copy as a safety net at
+`scripts/backups/model.safetensors.audio.bak` — **outside** the bundle
+resource path so Xcode's `type: folder` reference for `Resources/Models`
+doesn't sweep it into the `.app`. (Critical: the very first run of the
+strip script put the backup *inside* `Resources/Models/Gemma/`, which
+bloated the `.app` bundle from ~3.1 GB to ~6.4 GB. The script now
+defaults to `scripts/backups/` and migrates any legacy backup it finds.)
+
+To restore:
+```
+mv scripts/backups/model.safetensors.audio.bak \
+   HikeCompanion/Resources/Models/Gemma/model.safetensors
+```
+(or just re-run `bash scripts/fetch-gemma.sh` to pull a fresh copy.)
+
+Vision-tower weights are kept because Phase 3b will turn them on.
 
 ## Phase status
 

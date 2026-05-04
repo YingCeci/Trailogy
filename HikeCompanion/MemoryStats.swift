@@ -70,4 +70,50 @@ struct MemoryStats {
         MLX:     active \(Self.formatBytes(mlxActiveBytes))   cache \(Self.formatBytes(mlxCacheBytes))   peak \(Self.formatBytes(mlxPeakBytes))
         """
     }
+
+    /// Single-line summary for the Xcode debug console — easy to scan
+    /// when scrubbing through a turn's worth of output.
+    var oneLine: String {
+        "footprint \(Self.formatBytes(processFootprintBytes))"
+            + " · resident \(Self.formatBytes(processResidentBytes))"
+            + " · MLX active \(Self.formatBytes(mlxActiveBytes))"
+            + " · cache \(Self.formatBytes(mlxCacheBytes))"
+            + " · peak \(Self.formatBytes(mlxPeakBytes))"
+    }
+
+    /// Snapshot + print to the Xcode debug console with a `[Mem]` tag.
+    /// Filter the console with "[Mem]" to see only memory output.
+    static func log(_ label: String = "snapshot") {
+        print("[Mem] \(label) · \(current().oneLine)")
+    }
+}
+
+// MARK: - Periodic logger
+
+/// Prints a `[Mem] tick` line every `interval` seconds while running, so
+/// you can watch the steady-state memory profile from Xcode's debug
+/// console without having to flip back to the in-app DebugView.
+///
+/// Started from `HikeCompanionApp.init()`. Stops the ticker when the
+/// process exits (we don't bother with backgrounding hooks — Xcode
+/// debug runs are foreground-only in practice).
+@MainActor
+final class MemoryProbe {
+    static let shared = MemoryProbe()
+    private var timer: Timer?
+
+    private init() {}
+
+    func start(interval: TimeInterval = 5.0) {
+        stop()
+        MemoryStats.log("launch")
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            MemoryStats.log("tick")
+        }
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
 }
