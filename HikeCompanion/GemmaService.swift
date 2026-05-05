@@ -73,8 +73,13 @@ final class GemmaService: ObservableObject {
     private var conversationHistory: [Chat.Message] = []
 
     /// Cap on stored history. Each (user, assistant) pair is 2 messages,
-    /// so 20 = 10 turns of context. Past this, oldest messages drop off.
-    private let maxHistoryMessages = 20
+    /// so 6 = 3 turns of context. Past this, oldest messages drop off.
+    /// We deliberately keep this short — every replayed turn re-prefills
+    /// through the model and inflates KV cache footprint. 3 turns is
+    /// enough conversational coherence for a tour-companion app
+    /// ("what about the bark on that tree?" → "the maple I just
+    /// described") without paying a memory hit.
+    private let maxHistoryMessages = 6
 
     /// VLM asks already carry a large image-token block (~196 tokens
     /// for a 14×14 patch grid). Replaying any conversation history on
@@ -84,7 +89,9 @@ final class GemmaService: ObservableObject {
     /// 2 once we've validated the basic image path is stable.)
     private let maxImageHistoryMessages = 0
 
-    private let systemInstructions = """
+    /// Always-on persona instructions. Kept short — the bulk of the
+    /// effective system prompt is the trail block composed below.
+    private let baseInstructions = """
     You are a friendly outdoor companion who helps hikers understand what they \
     see — geology, plants, animals, weather, and climate change. Keep responses \
     brief and conversational: 2 to 4 short sentences. Speak as if narrating, \
@@ -92,11 +99,46 @@ final class GemmaService: ObservableObject {
     when answering follow-up questions.
     """
 
-    /// Mobile memory budget for both text and VLM asks. The app only needs
-    /// short spoken answers, so keep generation and KV growth bounded.
+    /// Image-specific guidance, only injected on VLM turns. Encourages a
+    /// confident best-guess with a visible cue, rather than the model's
+    /// default "I'm not sure, it could be many things" hedge that we
+    /// were getting on tree-ID asks.
+    private let imageInstructions = """
+    When the user shares a photo, identify the most likely subject and ground \
+    your answer in what's visible. If you're not certain of a species, give \
+    your best guess and one observable cue (leaf shape, bark pattern, color, \
+    size). Don't refuse — even a confident "looks like a … because of …" is \
+    more useful than vague hedging.
+    """
+
+    /// Composed once per `setActiveContext` call; injected into the
+    /// system instructions for every Ask until cleared. Keeps the model
+    /// grounded in the active trail rather than answering as a generic
+    /// outdoor companion floating in the void.
+    private var trailContextBlock: String = ""
+
+    /// Per-turn framing prepended to each user prompt. Updates as the
+    /// user advances between stops, so an answer to "what's that mossy
+    /// stuff?" reflects where they are RIGHT NOW. Stripped from saved
+    /// history (we don't want stale stop framings polluting future
+    /// turns — only the user's actual question is preserved).
+    private var stopContextBlock: String = ""
+
+    /// Mobile memory budget for both text and VLM asks. Sized to fit
+    /// what the worst real path actually needs, not a generous slop:
+    ///
+    ///   • VLM:  196 image + ~330 system + ~100 user + 160 gen ≈ 790
+    ///   • Text: ~330 system + ~540 history (3 turns) + ~100 user
+    ///           + 160 gen ≈ 1130
+    ///
+    /// 1280 covers both with ~150-token headroom. Bumping any higher
+    /// trades real footprint (the KV cache is allocated by maxKVSize
+    /// regardless of how full it actually is — going from 768 to 2048
+    /// during the trail-context work cost ~1 GB peak and pushed VLM
+    /// runs uncomfortably close to jetsam on iPhone).
     private let generationParameters = GenerateParameters(
         maxTokens: 160,
-        maxKVSize: 768,
+        maxKVSize: 1280,
         temperature: 0.7,
         prefillStepSize: 128
     )
@@ -159,6 +201,55 @@ final class GemmaService: ObservableObject {
         status = isLoaded ? "Gemma 4 loaded · history reset" : status
     }
 
+    // MARK: - Active context (trail + current stop)
+
+    /// Set the active trail and current-stop framing. Call once on tour
+    /// start with `stopIdx: 0`, and again whenever the user advances to
+    /// a new stop. Pass `trail: nil` to clear (e.g. on tour end / view
+    /// disappear).
+    ///
+    /// The trail block goes into the system prompt (static across the
+    /// conversation). The stop block is prepended to each user prompt
+    /// as a `[Currently at Stop X of Y: ...]` framing — so answers
+    /// shift as the user moves without us re-spending system-prompt
+    /// tokens or invalidating the model's KV cache mid-tour.
+    func setActiveContext(trail: Trail?, stopIdx: Int?) {
+        guard let trail else {
+            trailContextBlock = ""
+            stopContextBlock = ""
+            return
+        }
+
+        let highlights = trail.stops.map(\.name).joined(separator: ", ")
+        let distance = trail.distanceMiles == floor(trail.distanceMiles)
+            ? String(format: "%.0f", trail.distanceMiles)
+            : String(format: "%.1f", trail.distanceMiles)
+
+        trailContextBlock = """
+        TODAY'S TRAIL: \(trail.name) at \(trail.parkLocation). \
+        \(distance)-mile \(trail.difficulty.lowercased()) loop, about \
+        \(trail.durationMinutes) minutes. Stops along the way: \(highlights).
+
+        REGION: \(trail.regionalContext)
+        """
+
+        if let stopIdx, let stop = trail.stops[safe: stopIdx] {
+            stopContextBlock = "[Currently at Stop \(stop.number) of \(trail.stops.count): \(stop.name). \(stop.spokenNarration)]"
+        } else {
+            stopContextBlock = ""
+        }
+    }
+
+    /// System instructions for THIS turn = base + (image guidance if
+    /// VLM) + trail context block. Composed fresh each Ask so it
+    /// reflects the latest `setActiveContext` and per-turn modality.
+    private func composedSystemInstructions(forImage hasImage: Bool) -> String {
+        var parts: [String] = [baseInstructions]
+        if hasImage { parts.append(imageInstructions) }
+        if !trailContextBlock.isEmpty { parts.append(trailContextBlock) }
+        return parts.joined(separator: "\n\n")
+    }
+
     // MARK: - Inference
 
     /// Stream Gemma's response. If `image` is non-nil the caller must
@@ -194,9 +285,23 @@ final class GemmaService: ObservableObject {
             ? conversationHistory
             : Array(conversationHistory.suffix(maxImageHistoryMessages))
 
+        // Compose the system prompt once per turn so it reflects:
+        //   • the active trail (set via setActiveContext)
+        //   • whether this turn is text-only or VLM (different guidance)
+        let composedInstructions = composedSystemInstructions(
+            forImage: !imageInputs.isEmpty
+        )
+
+        // Sandwich the user's prompt with the current stop framing if
+        // we have one. Saved history keeps just `prompt` (without the
+        // stop framing) — see persist block below.
+        let composedPrompt = stopContextBlock.isEmpty
+            ? prompt
+            : "\(stopContextBlock)\n\n\(prompt)"
+
         let session = ChatSession(
             container,
-            instructions: systemInstructions,
+            instructions: composedInstructions,
             history: historySnapshot,
             generateParameters: generationParameters
         )
@@ -208,7 +313,7 @@ final class GemmaService: ObservableObject {
                     let label = imageInputs.isEmpty ? "text" : "image"
                     MemoryStats.log("gemma.stream start (\(label))")
                     for try await chunk in session.streamResponse(
-                        to: prompt,
+                        to: composedPrompt,
                         images: imageInputs,
                         videos: []
                     ) {
@@ -217,9 +322,12 @@ final class GemmaService: ObservableObject {
                     }
                     MemoryStats.log("gemma.stream done (\(label))")
 
-                    // Persist the turn (text only — image bytes don't go
-                    // into history; the assistant's text response is
-                    // what carries forward).
+                    // Persist the turn. Save the user's actual question
+                    // (without the stop-framing prefix) so future turns
+                    // aren't anchored to a stop the user has since left.
+                    // The assistant's text response IS preserved in full
+                    // and carries forward what the model "knew" when it
+                    // answered.
                     self.conversationHistory.append(.init(role: .user, content: prompt))
                     self.conversationHistory.append(.init(role: .assistant, content: fullText))
                     while self.conversationHistory.count > self.maxHistoryMessages {
