@@ -119,6 +119,9 @@ struct WalkingView: View {
         .onDisappear {
             stopTourCycle()
             tts.stop()  // halt any in-flight narration when leaving the view
+            // Drop the LM's trail/stop framing so a re-entry to picker
+            // doesn't carry stale context into the next trail.
+            gemma.setActiveContext(trail: nil, stopIdx: nil)
         }
         // When Kokoro stops speaking, decide whether the tour narration
         // ended naturally (good — clear state and resume the phase timer)
@@ -963,6 +966,20 @@ struct WalkingView: View {
         // Interrupt any ongoing tour-guide narration and capture how
         // far it got so we can resume the unspoken remainder later.
         interruptNarrationForQuestion()
+
+        // Pause the auto-tour phase timer for the duration of the
+        // interaction. If we didn't, the timer could fire mid-hold and
+        // kick off a new "Arriving at <stop>…" narration the user
+        // can't hear because they're focused on their question — and
+        // worse, that narration's TTS synth would still be running
+        // when runAsk tries to speak the answer, silently dropping
+        // the answer's `tts.synthesize` and stranding the tour with
+        // a stale narrationFullText (the "stuck at Layered Cliffs"
+        // bug). scheduleNextPhase reruns at the end of every Ask flow
+        // so the timer comes back on its own.
+        phaseTimer?.invalidate()
+        phaseTimer = nil
+
         isHolding = true
         do {
             try speech.startRecording()
@@ -980,9 +997,20 @@ struct WalkingView: View {
             try? await Task.sleep(for: .milliseconds(600))
             let text = speech.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else {
-                // Nothing captured — resume the paused narration if any.
+                // Nothing captured. Two cleanups depending on what we
+                // interrupted on the way in:
+                //   • narrationPaused → resumeNarrationIfNeeded brings
+                //     the narration back; the narration's natural end
+                //     will re-arm the phase timer via scheduleNextPhase.
+                //   • otherwise → we killed the phase timer in
+                //     startHold and there's nothing in flight, so
+                //     re-arm it ourselves.
                 await MainActor.run {
-                    if narrationPaused { resumeNarrationIfNeeded() }
+                    if narrationPaused {
+                        resumeNarrationIfNeeded()
+                    } else {
+                        scheduleNextPhase()
+                    }
                 }
                 return
             }
@@ -1169,6 +1197,7 @@ struct WalkingView: View {
         stopTourCycle()
         tts.stop()
         gemma.reset()              // wipe conversation history at end of tour
+        gemma.setActiveContext(trail: nil, stopIdx: nil)  // drop trail/stop framing
         capturedImage = nil        // drop any captured photo
         showPhotoContext = false
         narrationFullText = nil
@@ -1183,6 +1212,10 @@ struct WalkingView: View {
     private func startTourCycle() {
         stopIdx = 0
         phase = .atStop
+        // Hand the LM the trail + first-stop framing BEFORE the user
+        // can ask anything. Without this, the very first Ask would hit
+        // a Gemma that doesn't know which trail it's on.
+        gemma.setActiveContext(trail: trail, stopIdx: stopIdx)
         // Speak the trail intro on Begin. Phase timer is paused while
         // narration plays — see scheduleNextPhase.
         speakNarration(
@@ -1222,6 +1255,12 @@ struct WalkingView: View {
 
     private func advancePhase() {
         if isPaused { return }
+        // Defensive: a Timer's already-fired closure can run AFTER we
+        // invalidate the timer (the queued Task is past the
+        // invalidation point). If that race lands inside a hold or an
+        // in-flight Ask, dropping this transition is correct —
+        // scheduleNextPhase will restart it once the user is done.
+        if isHolding || isAnswering { return }
         switch phase {
         case .atStop:
             phase = .between
@@ -1230,6 +1269,9 @@ struct WalkingView: View {
         case .approaching:
             stopIdx = (stopIdx + 1) % trail.stops.count
             phase = .atStop
+            // Refresh the LM's stop framing so any Ask the user makes
+            // at this new stop is grounded in the right content.
+            gemma.setActiveContext(trail: trail, stopIdx: stopIdx)
             // Auto-narrate the stop's content on arrival. The lyric
             // (= what Kokoro is saying) is the only at-stop text.
             speakNarration(
@@ -1263,10 +1305,16 @@ struct WalkingView: View {
     }
 
     /// User is starting to ask a question. If a narration is currently
-    /// playing, capture how much got delivered (so we can resume the
-    /// remainder) and halt the audio.
+    /// in flight — either audibly speaking, OR queued in the synth
+    /// pipeline but not yet emitting audio — capture how much got
+    /// delivered and halt the audio. We can't gate solely on
+    /// `tts.isSpeaking` because there's a 0.5–2 s window between
+    /// `tts.synthesize` being called and the first chunk producing
+    /// sound; a hold landing inside that window would leave the
+    /// narration synth running and silently break the answer's
+    /// subsequent `tts.synthesize` (which guards on `!isRunning`).
     private func interruptNarrationForQuestion() {
-        guard tts.isSpeaking, narrationFullText != nil else { return }
+        guard narrationFullText != nil else { return }
         narrationDelivered = tts.currentCaption
         narrationPaused = true
         currentlySpeaking = .none
