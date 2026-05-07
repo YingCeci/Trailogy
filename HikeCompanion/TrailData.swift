@@ -177,18 +177,12 @@ enum TrailData {
         I'll be right here when you're ready.
         """,
         regionalContext: """
-        Western Pennsylvania, glacial gorge ecosystem. Common trees: \
-        eastern hemlock (some 300+ years old), white oak, red oak, \
-        sugar maple, red maple, American beech, tulip poplar, sassafras, \
-        great rhododendron, mountain laurel. Wildlife: white-tailed \
-        deer, eastern chipmunks, gray squirrels, pileated woodpeckers, \
-        red-tailed hawks, barred owls, eastern box turtles, brook trout \
-        in the creek, northern dusky salamanders in seeps. Geology: \
-        Pennsylvanian-age sandstone (~320 Mya) and shale, shaped by \
-        Pleistocene glacial meltwater that carved this gorge ~15,000 \
-        years ago. Iron-oxide staining is common where groundwater \
-        seeps through the rock. Mosses, ferns, and lichens thrive in \
-        the cool, damp microclimate at the creek.
+        Trees: eastern hemlock, white oak, red oak, sugar maple, \
+        beech, tulip poplar, sassafras, rhododendron. Wildlife: \
+        white-tailed deer, pileated woodpeckers, red-tailed hawks, \
+        brook trout. Pennsylvanian sandstone gorge (~320 Mya), carved \
+        by glacial meltwater ~15,000 years ago. Iron-oxide staining \
+        from groundwater seeps; mosses and ferns at the creek.
         """
     )
 
@@ -255,16 +249,12 @@ enum TrailData {
         listen. The sound is what this place is known for.
         """,
         regionalContext: """
-        Western Pennsylvania, McConnells Mill State Park. Common trees: \
-        eastern hemlock, great rhododendron, mountain laurel, American \
-        beech, sugar maple, tulip poplar, yellow birch. Wildlife: \
-        white-tailed deer, gray squirrels, wood thrush (spring), \
-        barred owls, pileated woodpeckers, dusky and red-backed \
-        salamanders in the falls spray zone. Geology: Mississippian-age \
-        limestone (~350 Mya) at the falls, shifting to Pennsylvanian \
-        sandstone above. The cool, persistently damp microclimate \
-        supports moss, ferns, lichens, and liverworts year-round; the \
-        falls run strongest after spring snowmelt.
+        Trees: eastern hemlock, rhododendron, mountain laurel, beech, \
+        sugar maple, tulip poplar, yellow birch. Wildlife: \
+        white-tailed deer, wood thrush (spring), barred owls, \
+        salamanders in the falls spray zone. Mississippian limestone \
+        at the falls (~350 Mya), Pennsylvanian sandstone above. Cool \
+        damp microclimate; moss, ferns, lichens year-round.
         """
     )
 
@@ -345,17 +335,14 @@ enum TrailData {
         one of the few stretches of urban old growth left in Pennsylvania.
         """,
         regionalContext: """
-        Pittsburgh, urban old-growth fragment in Frick Park. Common \
-        trees: white oak, red oak, American beech, tulip poplar, \
-        sugar maple, American elm, black cherry, sycamore along the \
-        creek. Wildlife: gray squirrels, eastern chipmunks, white-tailed \
-        deer, red-tailed hawks, barred owls, wood thrush, indigo \
-        bunting, pileated woodpeckers, red foxes (occasional). Nine \
-        Mile Run is a daylit urban stream restored in 2006; supports \
-        green frogs, snapping turtles, and brook trout (stocked). \
-        Geology: Pittsburgh Coal-bearing strata (Pennsylvanian, \
-        ~300 Mya). Most of the watershed sat under industrial slag for \
-        most of the 20th century before restoration.
+        Trees: white oak, red oak, beech, tulip poplar, sugar maple, \
+        American elm, black cherry, sycamore (creek). Wildlife: \
+        gray squirrels, white-tailed deer, red-tailed hawks, \
+        barred owls, wood thrush, indigo bunting, red foxes \
+        (occasional). Nine Mile Run is a daylit urban stream restored \
+        in 2006; green frogs, snapping turtles, stocked brook trout. \
+        Pittsburgh Coal strata (Pennsylvanian, ~300 Mya); legacy \
+        industrial slag through most of the 20th century.
         """
     )
 
