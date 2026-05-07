@@ -89,26 +89,20 @@ final class GemmaService: ObservableObject {
     /// 2 once we've validated the basic image path is stable.)
     private let maxImageHistoryMessages = 0
 
-    /// Always-on persona instructions. Kept short — the bulk of the
-    /// effective system prompt is the trail block composed below.
+    /// Always-on persona + identification instructions. Folded into a
+    /// single block (was previously two — base + image-specific) so we
+    /// don't pay the dedicated image-guidance tokens on every VLM turn.
+    /// The "best guess + visible cue, no hedging" advice applies to
+    /// text questions about species too ("what's that bird call?")
+    /// and is short enough that the cost on the text path is fine.
     private let baseInstructions = """
     You are a friendly outdoor companion who helps hikers understand what they \
-    see — geology, plants, animals, weather, and climate change. Keep responses \
-    brief and conversational: 2 to 4 short sentences. Speak as if narrating, \
-    not as if writing a report. Remember earlier turns of this conversation \
-    when answering follow-up questions.
-    """
-
-    /// Image-specific guidance, only injected on VLM turns. Encourages a
-    /// confident best-guess with a visible cue, rather than the model's
-    /// default "I'm not sure, it could be many things" hedge that we
-    /// were getting on tree-ID asks.
-    private let imageInstructions = """
-    When the user shares a photo, identify the most likely subject and ground \
-    your answer in what's visible. If you're not certain of a species, give \
-    your best guess and one observable cue (leaf shape, bark pattern, color, \
-    size). Don't refuse — even a confident "looks like a … because of …" is \
-    more useful than vague hedging.
+    see — geology, plants, animals, weather. Keep responses brief and \
+    conversational: 2 to 4 short sentences. Speak as if narrating, not as if \
+    writing a report. When uncertain about a species, give your best guess \
+    with one observable cue (leaf shape, bark, color) — don't hedge into \
+    vagueness. Remember earlier turns of this conversation when answering \
+    follow-up questions.
     """
 
     /// Composed once per `setActiveContext` call; injected into the
@@ -125,20 +119,21 @@ final class GemmaService: ObservableObject {
     private var stopContextBlock: String = ""
 
     /// Mobile memory budget for both text and VLM asks. Sized to fit
-    /// what the worst real path actually needs, not a generous slop:
+    /// what the worst real path actually needs, with the trimmed
+    /// regional contexts and merged base instructions:
     ///
-    ///   • VLM:  196 image + ~330 system + ~100 user + 160 gen ≈ 790
-    ///   • Text: ~330 system + ~540 history (3 turns) + ~100 user
-    ///           + 160 gen ≈ 1130
+    ///   • VLM:  196 image + ~180 system + ~80 user + 120 gen ≈ 580
+    ///   • Text: ~180 system + ~360 history (3 turns) + ~80 user
+    ///           + 120 gen ≈ 740
     ///
-    /// 1280 covers both with ~150-token headroom. Bumping any higher
-    /// trades real footprint (the KV cache is allocated by maxKVSize
-    /// regardless of how full it actually is — going from 768 to 2048
-    /// during the trail-context work cost ~1 GB peak and pushed VLM
-    /// runs uncomfortably close to jetsam on iPhone).
+    /// 1024 covers both with comfortable headroom. We measured the
+    /// real cost of going LARGER directly: every extra token in the
+    /// active context window translated to ~3 MB of peak footprint
+    /// during VLM decode (MLX's intermediate activations scale with
+    /// prompt length, not just KV cache size).
     private let generationParameters = GenerateParameters(
-        maxTokens: 160,
-        maxKVSize: 1280,
+        maxTokens: 120,
+        maxKVSize: 1024,
         temperature: 0.7,
         prefillStepSize: 128
     )
@@ -240,12 +235,14 @@ final class GemmaService: ObservableObject {
         }
     }
 
-    /// System instructions for THIS turn = base + (image guidance if
-    /// VLM) + trail context block. Composed fresh each Ask so it
-    /// reflects the latest `setActiveContext` and per-turn modality.
+    /// System instructions for THIS turn = base + trail context block.
+    /// Image guidance used to be a separate block conditionally
+    /// appended on VLM turns; we folded it into baseInstructions
+    /// (it's short and applies to text species asks too) to save
+    /// ~50 tokens per VLM call. Composed fresh each Ask so it
+    /// reflects the latest `setActiveContext`.
     private func composedSystemInstructions(forImage hasImage: Bool) -> String {
         var parts: [String] = [baseInstructions]
-        if hasImage { parts.append(imageInstructions) }
         if !trailContextBlock.isEmpty { parts.append(trailContextBlock) }
         return parts.joined(separator: "\n\n")
     }
