@@ -22,6 +22,12 @@ HikeCompanion/Resources/Models/*
 # Strip-script backups — kept locally as a safety net, never committed
 scripts/backups/
 
+# Per-developer xcodegen overrides (signing team, bundle ID, etc.).
+# When this file exists, scripts/generate-project.sh merges it on top of
+# project.yml so each developer can pin their own Apple ID / Team without
+# polluting the upstream spec.
+project.local.yml
+
 # macOS
 .DS_Store
 

@@ -19,6 +19,17 @@ else
   exit 1
 fi
 
-echo "==> Generating Xcode project with $XCODEGEN_BIN ..."
-"$XCODEGEN_BIN" generate
+# Per-developer override: project.local.yml (gitignored). When present,
+# it becomes the entry spec — its `include:` directive pulls in project.yml
+# first, then any keys below override it. Typical use is to pin
+# PRODUCT_BUNDLE_IDENTIFIER and DEVELOPMENT_TEAM to whichever Apple ID is
+# signed in on this Mac, without dirtying the committed spec.
+SPEC="project.yml"
+if [[ -f project.local.yml ]]; then
+  echo "==> Found project.local.yml — applying local overrides."
+  SPEC="project.local.yml"
+fi
+
+echo "==> Generating Xcode project with $XCODEGEN_BIN (spec: $SPEC) ..."
+"$XCODEGEN_BIN" generate --spec "$SPEC"
 echo "==> Done. Open HikeCompanion.xcodeproj in Xcode."
