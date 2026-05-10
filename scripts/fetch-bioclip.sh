@@ -51,6 +51,10 @@
 #   bash scripts/fetch-bioclip.sh              # full conversion + deploy
 #   bash scripts/fetch-bioclip.sh --force      # redo even if files exist
 #
+#   PYTHON=/path/to/env/bin/python bash scripts/fetch-bioclip.sh
+#       Run conversion with a specific Python interpreter (e.g. a conda
+#       env that has torch + open_clip + mlx). Defaults to `python3`.
+#
 # Re-run safe: idempotent. If Models/BioCLIP/ already has all 4 non-empty
 # files, the conversion is skipped automatically; pass --force to redo.
 
@@ -61,6 +65,9 @@ REPO_ROOT="$(pwd)"
 SCRIPTS_DIR="$REPO_ROOT/scripts"
 BIOCLIP_REPO="${BIOCLIP_REPO:-$REPO_ROOT/../bioclip-2}"
 DEST_DIR="$REPO_ROOT/HikeCompanion/Resources/Models/BioCLIP"
+# Override with PYTHON=/path/to/env/bin/python if your default python3
+# does not have torch/open_clip/mlx installed.
+PYTHON="${PYTHON:-python3}"
 
 REQUIRED_FILES=("config.json" "model.safetensors" "species_embeddings.npz" "species_list.json")
 
@@ -121,7 +128,7 @@ echo ""
 echo "============================================================"
 echo "  Step 1: Vision encoder → MLX INT4"
 echo "============================================================"
-python3 "$CONVERT_PY" \
+"$PYTHON" "$CONVERT_PY" \
     $BIOCLIP_ARGS \
     --output_dir "$DEST_DIR" \
     --q_bits 4 \
@@ -133,7 +140,7 @@ echo ""
 echo "============================================================"
 echo "  Step 2: Species text embeddings"
 echo "============================================================"
-python3 "$EMBED_PY" \
+"$PYTHON" "$EMBED_PY" \
     $BIOCLIP_ARGS \
     --output_dir "$DEST_DIR"
 
