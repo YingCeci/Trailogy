@@ -129,6 +129,11 @@ final class GemmaService: ObservableObject {
     /// turns — only the user's actual question is preserved).
     private var stopContextBlock: String = ""
 
+    /// BioCLIP species classification result, injected into image-ask
+    /// prompts so Gemma has a strong prior on what the photo shows.
+    /// Set by the caller before calling streamResponse.
+    var bioclipContext: String = ""
+
     /// Mobile memory budget for both text and VLM asks. Sized to fit
     /// what the worst real path actually needs, with the trimmed
     /// regional contexts and merged base instructions:
@@ -300,12 +305,16 @@ final class GemmaService: ObservableObject {
             forImage: !imageInputs.isEmpty
         )
 
-        // Sandwich the user's prompt with the current stop framing if
-        // we have one. Saved history keeps just `prompt` (without the
-        // stop framing) — see persist block below.
-        let composedPrompt = stopContextBlock.isEmpty
-            ? prompt
-            : "\(stopContextBlock)\n\n\(prompt)"
+        // Sandwich the user's prompt with the current stop framing and
+        // BioCLIP context if we have them. Saved history keeps just
+        // `prompt` (without framing) — see persist block below.
+        var promptParts: [String] = []
+        if !bioclipContext.isEmpty { promptParts.append(bioclipContext) }
+        if !stopContextBlock.isEmpty { promptParts.append(stopContextBlock) }
+        promptParts.append(prompt)
+        let composedPrompt = promptParts.joined(separator: "\n\n")
+        // Clear bioclipContext after use (one-shot per image ask)
+        bioclipContext = ""
 
         let session = ChatSession(
             container,

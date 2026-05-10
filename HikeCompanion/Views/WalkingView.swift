@@ -28,6 +28,7 @@ struct WalkingView: View {
     @EnvironmentObject var gemma: GemmaService
     @EnvironmentObject var tts: ValidationRunner
     @EnvironmentObject var speech: SpeechRecognizer
+    @EnvironmentObject var bioclip: BioCLIPService
 
     var trail: Trail { router.currentTrail }
 
@@ -1039,6 +1040,21 @@ struct WalkingView: View {
 
         Task {
             do {
+                // BioCLIP bypass: classify the photo before loading Gemma.
+                // The species prediction is injected into Gemma's prompt
+                // so it has a strong prior on what the image shows.
+                if let photo = photoForThisTurn, let cg = photo.cgImage {
+                    bioclip.loadIfNeeded()
+                    let predictions = bioclip.classify(image: cg, topK: 5)
+                    let bioclipTag = bioclip.formatForPrompt(predictions: predictions)
+                    if !bioclipTag.isEmpty {
+                        gemma.bioclipContext = bioclipTag
+                        print("[BioCLIP] \(bioclipTag)")
+                    }
+                    // BioCLIP is tiny (~193 MB) — keep resident, don't unload.
+                    // If memory is tight, uncomment: bioclip.unload()
+                }
+
                 try await gemma.loadIfNeeded(kind)
 
                 guard let stream = gemma.streamResponse(

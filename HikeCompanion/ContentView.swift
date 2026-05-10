@@ -19,6 +19,7 @@ struct ContentView: View {
     @StateObject private var tts = ValidationRunner()
     @StateObject private var speech = SpeechRecognizer()
     @StateObject private var router = AppRouter()
+    @StateObject private var bioclip = BioCLIPService()
 
     var body: some View {
         ZStack {
@@ -42,11 +43,13 @@ struct ContentView: View {
         .environmentObject(gemma)
         .environmentObject(tts)
         .environmentObject(speech)
+        .environmentObject(bioclip)
         .sheet(isPresented: $router.debugVisible) {
             DebugView()
                 .environmentObject(gemma)
                 .environmentObject(tts)
                 .environmentObject(speech)
+                .environmentObject(bioclip)
         }
     }
 }

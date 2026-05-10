@@ -19,6 +19,12 @@ external/**/Package.resolved
 HikeCompanion/Resources/Models/*
 !HikeCompanion/Resources/Models/README.md
 
+# NOTE: Gemma model variants live OUTSIDE this repo at ../gemma-variants/
+# (see scripts/switch-gemma.sh). They're not under this .gitignore's
+# scope — kept sibling-of-repo to stay out of git AND out of the .app
+# bundle (which would otherwise pull them in via the Resources/Models
+# blue-folder reference).
+
 # Strip-script backups — kept locally as a safety net, never committed
 scripts/backups/
 
