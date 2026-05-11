@@ -112,8 +112,12 @@ final class GemmaService: ObservableObject {
     vagueness. If a photo clearly shows something outside the outdoors — an \
     indoor object, a manufactured item, a person, food, a screen — describe \
     what is actually there in plain language; don't force it into the trail's \
-    flora, fauna, or geology. Remember earlier turns of this conversation \
-    when answering follow-up questions.
+    flora, fauna, or geology. If a "[BioCLIP: ...]" tag appears in the user \
+    message, treat it as a hint from an imperfect vision classifier (~50% \
+    top-1, ~80% top-5) — cross-check against what you actually see, prefer \
+    the genus over the exact species when the tag flags uncertainty, and \
+    never quote the tag or its numbers back to the user. Remember earlier \
+    turns of this conversation when answering follow-up questions.
     """
 
     /// Composed once per `setActiveContext` call; injected into the

@@ -369,24 +369,66 @@ class BioCLIPService: ObservableObject {
         }
     }
 
+    // MARK: - Prompt formatting
+    //
+    // Calibration follows the empirical findings in
+    // gemma4_note/03-bioclip_explore/docs/01-bioclip-output-characterization.md.
+    // The numbers are specific to BioCLIP-2 ViT-L/14 (768-d) with the
+    // 4-template averaging in scripts/bioclip/precompute_embeddings.py.
+    // Re-derive if anyone swaps the checkpoint or changes the templates.
+
+    /// Cosine below which we treat the photo as probably outside the
+    /// 101-species shortlist. Measured: in-set top-1 cosines cluster at
+    /// +0.72, out-of-set at +0.57; +0.60 is below the in-set
+    /// distribution and above the out-of-set mean.
+    private static let inSetCosineFloor: Float = 0.60
+
+    /// At or above this cosine the top match sits inside the in-set
+    /// distribution. Splits the qualitative band into likely/possible.
+    private static let highConfidenceCosine: Float = 0.70
+
+    /// Genus epithet from a binomial: "Tsuga canadensis" -> "Tsuga".
+    private static func genusEpithet(_ scientific: String?) -> String? {
+        guard let s = scientific else { return nil }
+        let parts = s.split(separator: " ", maxSplits: 1, omittingEmptySubsequences: true)
+        guard let first = parts.first, !first.isEmpty else { return nil }
+        return String(first)
+    }
+
     /// Format predictions as text for Gemma prompt injection.
+    ///
+    /// Behaviour driven by the doc findings:
+    ///   - Top-1 acc ~49%, top-5 ~80% -> surface top-3, not top-1.
+    ///   - Below the in-set floor -> suppress species prior, tell Gemma
+    ///     to describe what is visible (escape hatch for off-trail photos).
+    ///   - Failures are within-genus -> when top-3 share a genus, hand
+    ///     the genus to Gemma as the reliable answer.
+    ///   - Cosines are NOT probabilities -> two-band qualitative label
+    ///     (likely/possible) instead of a misleading percent.
     func formatForPrompt(predictions: [SpeciesPrediction]) -> String {
-        guard !predictions.isEmpty else { return "" }
-        let top = predictions[0]
-        let pct = Int(top.confidence * 100)
+        guard let top = predictions.first else { return "" }
 
-        var result = "[BioCLIP: \(top.commonName)"
-        if let sci = top.scientificName {
-            result += " (\(sci))"
+        if top.confidence < Self.inSetCosineFloor {
+            return "[BioCLIP: low confidence - species likely outside the trail list; describe what is visible in the photo]"
         }
-        result += ", \(pct)%"
 
-        if predictions.count > 1 && predictions[1].confidence > 0.15 {
-            let second = predictions[1]
-            result += "; also \(second.commonName) \(Int(second.confidence * 100))%"
+        let topN = Array(predictions.prefix(3))
+
+        let candidates = topN.map { p -> String in
+            let label = p.confidence >= Self.highConfidenceCosine ? "likely" : "possible"
+            var s = label + " " + p.commonName
+            if let sci = p.scientificName {
+                s += " (" + sci + ")"
+            }
+            return s
+        }.joined(separator: "; ")
+
+        let genera = topN.compactMap { Self.genusEpithet($0.scientificName) }
+        if genera.count == topN.count, let g = genera.first, Set(genera).count == 1 {
+            return "[BioCLIP candidates all in genus " + g + ": " + candidates + ". Species ID is uncertain (~50% top-1 accuracy) but the genus is reliable - speak about " + g + " traits if asked, and only commit to a species when visible cues support it.]"
         }
-        result += "]"
-        return result
+
+        return "[BioCLIP candidates (top-3): " + candidates + ". Top-1 may be wrong (~50% top-1, ~80% top-5 on PlantNet); pick whichever best matches the visible cues, or describe by genus if unsure.]"
     }
 
     // MARK: - Image Preprocessing
