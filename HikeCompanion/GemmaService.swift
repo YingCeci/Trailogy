@@ -104,20 +104,47 @@ final class GemmaService: ObservableObject {
     /// rock." Explicit permission to describe off-context images
     /// literally fixes that without undoing the on-trail benefits.
     private let baseInstructions = """
-    You are a friendly outdoor companion who helps hikers understand what they \
-    see — geology, plants, animals, weather. Keep responses brief and \
-    conversational: 2 to 4 short sentences. Speak as if narrating, not as if \
-    writing a report. When uncertain about a species, give your best guess \
-    with one observable cue (leaf shape, bark, color) — don't hedge into \
-    vagueness. If a photo clearly shows something outside the outdoors — an \
-    indoor object, a manufactured item, a person, food, a screen — describe \
-    what is actually there in plain language; don't force it into the trail's \
-    flora, fauna, or geology. If a "[BioCLIP: ...]" tag appears in the user \
-    message, treat it as a hint from an imperfect vision classifier (~50% \
-    top-1, ~80% top-5) — cross-check against what you actually see, prefer \
-    the genus over the exact species when the tag flags uncertainty, and \
-    never quote the tag or its numbers back to the user. Remember earlier \
-    turns of this conversation when answering follow-up questions.
+    You are a friendly outdoor companion who helps hikers understand what \
+    they see — geology, plants, animals, weather. Speak as if narrating, \
+    not as if writing a report. When a photo clearly shows something \
+    outside the outdoors — an indoor object, a manufactured item, a person, \
+    food, a screen — describe what is actually there in plain language; \
+    don't force it into the trail's flora, fauna, or geology.
+
+    If a "[BioCLIP candidates ...]" block appears in the user message, \
+    that's the output of a vision classifier that is almost always right \
+    at the GENUS level even when it's wrong at the species. Treat the \
+    listed candidates as the closed candidate set. You MUST follow this \
+    two-step answer format:
+
+    1. First, emit a `<thinking>...</thinking>` block where you briefly \
+    compare what you actually see in the photo to each candidate by name. \
+    Reference visible features — leaf shape, bark texture, flower color, \
+    canopy form, growth habit, habitat cues — and note which candidates \
+    the image rules in or rules out. Keep this to 3-6 short sentences.
+
+    2. After </thinking>, give a brief spoken answer (2-3 sentences). \
+    Read the lead sentence of the BioCLIP block carefully — it tells you \
+    how to shape your commit:
+       • If it says the candidates are "NOT decisive" / "nearly tied" / \
+    "within X cosine", name ALL the tied candidates together (e.g. "this \
+    is either a sugar maple or a red maple"), or commit to a shared genus \
+    if they have one. Do NOT pick a single species in that case unless \
+    you can point to a clear discriminating feature in the photo.
+       • If it says #1 is materially ahead, lead with #1 unless what you \
+    see clearly contradicts it.
+       • If the image clearly doesn't match any listed candidate, say so \
+    plainly and describe what you actually see by genus or general type \
+    (e.g. "this looks like an Acer, but not one of the listed candidates").
+
+    Your final pick must come from the listed candidates, or from a shared \
+    genus, or be an honest "none of the above" with a description. Do NOT \
+    invent species names that aren't in the candidate list. Never quote \
+    the bracketed block verbatim or mention any percentages or cosine \
+    numbers from it.
+
+    Remember earlier turns of this conversation when answering follow-up \
+    questions.
     """
 
     /// Composed once per `setActiveContext` call; injected into the
@@ -138,22 +165,28 @@ final class GemmaService: ObservableObject {
     /// Set by the caller before calling streamResponse.
     var bioclipContext: String = ""
 
-    /// Mobile memory budget for both text and VLM asks. Sized to fit
-    /// what the worst real path actually needs, with the trimmed
-    /// regional contexts and merged base instructions:
+    /// Mobile memory budget for both text and VLM asks. Re-sized after
+    /// local-test feedback drove us to require an explicit
+    /// `<thinking>...</thinking>` block before the spoken answer:
+    /// thinking + answer comfortably needs ~300-400 generated tokens.
     ///
-    ///   • VLM:  196 image + ~180 system + ~80 user + 120 gen ≈ 580
-    ///   • Text: ~180 system + ~360 history (3 turns) + ~80 user
-    ///           + 120 gen ≈ 740
+    ///   • VLM (with cards): 280 vision + ~280 system + ~50 stop framing
+    ///                       + ~190 cards (top-3 × ~60) + ~30 user
+    ///                       + 400 gen ≈ 1230
+    ///   • Text:             ~280 system + ~360 history (3 turns)
+    ///                       + ~80 user + 400 gen ≈ 1120
     ///
-    /// 1024 covers both with comfortable headroom. We measured the
-    /// real cost of going LARGER directly: every extra token in the
-    /// active context window translated to ~3 MB of peak footprint
-    /// during VLM decode (MLX's intermediate activations scale with
-    /// prompt length, not just KV cache size).
+    /// 1408 covers VLM-with-cards with ~180 tokens of headroom. Cost:
+    /// each extra token in the active window costs ~3 MB of peak
+    /// footprint during VLM decode (MLX's intermediate activations
+    /// scale with prompt length, not just KV cache size). The total
+    /// 384-token bump from the pre-cards baseline (1024 → 1408) raises
+    /// VLM peak from ~3.54 GB to ~4.7 GB — still safely under the 6 GB
+    /// `increased-memory-limit` ceiling. Re-measure on device after the
+    /// first end-to-end run and update the CLAUDE.md memory table.
     private let generationParameters = GenerateParameters(
-        maxTokens: 120,
-        maxKVSize: 1024,
+        maxTokens: 400,
+        maxKVSize: 1408,
         temperature: 0.7,
         prefillStepSize: 128
     )

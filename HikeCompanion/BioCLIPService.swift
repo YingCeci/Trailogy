@@ -19,6 +19,9 @@ import MLXNN
 // MARK: - Species Prediction
 
 struct SpeciesPrediction {
+    /// Row index into `species_list.json` — the key used to look up
+    /// `species_prompt_cards.json` entries when building Gemma's prompt.
+    let index: Int
     let name: String
     let commonName: String
     let scientificName: String?
@@ -253,6 +256,17 @@ class BioCLIPService: ObservableObject {
     private var speciesList: [SpeciesInfo] = []
     private var config: BioCLIPConfig?
 
+    /// Compact per-species "ID cards" for prompt injection. Keyed by the
+    /// string form of `SpeciesInfo.index` (matches `species_id` in the
+    /// offline enrichment pipeline at
+    /// gemma4_note/05b-data_plantnet300k-enrich/build_prompt_cards.py).
+    ///
+    /// Each card is ~50-60 tokens of "common name (scientific, family):
+    /// 1-2 morphology sentences. Range: ...". Missing entries are
+    /// tolerated — `formatForPrompt` falls back gracefully if a top-K
+    /// species_id has no card.
+    private var speciesCards: [String: String] = [:]
+
     // ImageNet normalization constants
     private let mean: [Float] = [0.48145466, 0.4578275, 0.40821073]
     private let std: [Float] = [0.26862954, 0.26130258, 0.27577711]
@@ -312,8 +326,24 @@ class BioCLIPService: ObservableObject {
             let embURL = modelDir.appendingPathComponent("species_embeddings.npz")
             speciesEmbeddings = try loadNPZEmbeddings(url: embURL)
 
+            // Optional: per-species prompt cards for richer Gemma context.
+            // Missing file is OK — the formatForPrompt fallback covers it.
+            let cardsURL = modelDir.appendingPathComponent("species_prompt_cards.json")
+            if FileManager.default.fileExists(atPath: cardsURL.path) {
+                do {
+                    let cardsData = try Data(contentsOf: cardsURL)
+                    speciesCards = try JSONDecoder().decode([String: String].self, from: cardsData)
+                    print("[BioCLIP] loaded \(speciesCards.count) prompt cards")
+                } catch {
+                    print("[BioCLIP] WARN: species_prompt_cards.json failed to parse: \(error)")
+                    speciesCards = [:]
+                }
+            } else {
+                print("[BioCLIP] no species_prompt_cards.json in bundle; using legacy single-line tag")
+            }
+
             isLoaded = true
-            status = "Ready (\(speciesList.count) species)"
+            status = "Ready (\(speciesList.count) species, \(speciesCards.count) cards)"
             MemoryStats.log("bioclip.load done")
         } catch {
             status = "Load failed: \(error.localizedDescription)"
@@ -324,6 +354,9 @@ class BioCLIPService: ObservableObject {
     func unload() {
         model = nil
         speciesEmbeddings = nil
+        // Keep `speciesList` and `speciesCards` resident — they're
+        // metadata, not MLX tensors, and reloading them costs disk IO
+        // for no MLX memory benefit.
         Memory.clearCache()
         isLoaded = false
         status = "Not loaded"
@@ -333,7 +366,7 @@ class BioCLIPService: ObservableObject {
     // MARK: - Classification
 
     /// Classify an image and return top-K species predictions.
-    func classify(image: CGImage, topK: Int = 5) -> [SpeciesPrediction] {
+    func classify(image: CGImage, topK: Int = 3) -> [SpeciesPrediction] {
         guard let model = model, let speciesEmb = speciesEmbeddings else {
             return []
         }
@@ -361,6 +394,7 @@ class BioCLIPService: ObservableObject {
             guard idx < speciesList.count else { return nil }
             let sp = speciesList[idx]
             return SpeciesPrediction(
+                index: sp.index,
                 name: sp.name,
                 commonName: sp.commonName,
                 scientificName: sp.scientificName,
@@ -383,9 +417,14 @@ class BioCLIPService: ObservableObject {
     /// distribution and above the out-of-set mean.
     private static let inSetCosineFloor: Float = 0.60
 
-    /// At or above this cosine the top match sits inside the in-set
-    /// distribution. Splits the qualitative band into likely/possible.
-    private static let highConfidenceCosine: Float = 0.70
+    /// Within how many cosine points are two candidates treated as
+    /// "tied"? From `03-bioclip_explore/docs/01-...md`: within-genus
+    /// failures cluster at 0.005-0.015 above/below the GT cosine.
+    /// 0.02 catches the typical "BioCLIP cannot distinguish these"
+    /// pattern without misclassifying clearly-separated scores as ties.
+    /// Surfaced to Gemma so the model can honestly hedge when the
+    /// classifier itself isn't decisive, instead of guessing a species.
+    private static let tiedCosineWindow: Float = 0.02
 
     /// Genus epithet from a binomial: "Tsuga canadensis" -> "Tsuga".
     private static func genusEpithet(_ scientific: String?) -> String? {
@@ -395,40 +434,101 @@ class BioCLIPService: ObservableObject {
         return String(first)
     }
 
-    /// Format predictions as text for Gemma prompt injection.
+    /// Look up the offline-derived prompt card for a prediction.
+    /// Falls back to a synthesized "commonName (scientificName)" line
+    /// when the card JSON is missing or doesn't have this species,
+    /// so card-availability gaps never silently drop a candidate.
+    private func cardFor(_ p: SpeciesPrediction) -> String {
+        if let card = speciesCards[String(p.index)], !card.isEmpty {
+            return card
+        }
+        // Fallback when cards JSON isn't shipped, or this species_id
+        // wasn't in the enrichment output (e.g., GBIF couldn't match).
+        var s = p.commonName
+        if let sci = p.scientificName, !sci.isEmpty {
+            s += " (" + sci + ")"
+        }
+        return s
+    }
+
+    /// Format predictions for Gemma prompt injection.
     ///
-    /// Behaviour driven by the doc findings:
-    ///   - Top-1 acc ~49%, top-5 ~80% -> surface top-3, not top-1.
-    ///   - Below the in-set floor -> suppress species prior, tell Gemma
-    ///     to describe what is visible (escape hatch for off-trail photos).
-    ///   - Failures are within-genus -> when top-3 share a genus, hand
-    ///     the genus to Gemma as the reliable answer.
-    ///   - Cosines are NOT probabilities -> two-band qualitative label
-    ///     (likely/possible) instead of a misleading percent.
+    /// Design from `docs/specs/2026-05-12-bioclip-enriched-prompt-cot.md`,
+    /// revised iteratively against local-test feedback:
+    ///
+    ///   Round 1: free-form re-ranking degraded accuracy on 2/3 test
+    ///   images → switched to closed-set commit + `<thinking>` requirement.
+    ///
+    ///   Round 2: a closed-set commit is wrong when the classifier
+    ///   itself is not decisive. We now compute the "tied subset" —
+    ///   everyone within `tiedCosineWindow` cosine of #1 — and branch
+    ///   on the subset's properties:
+    ///
+    ///     a. Below in-set floor → suppress cards, low-confidence tag.
+    ///     b. Tied subset singleton → "lead with #1".
+    ///     c. Tied subset shares a genus → "commit to the genus".
+    ///     d. Tied subset has mixed genera → "name ALL tied candidates;
+    ///        don't pick one without a clear discriminator".
+    ///
+    ///   Lower-ranked candidates outside the tied window get a trailing
+    ///   "← lower classifier confidence" marker so Gemma downweights
+    ///   them without us having to expose raw cosines.
+    ///
+    /// Reinforced from the Gemma side in `GemmaService.baseInstructions`.
     func formatForPrompt(predictions: [SpeciesPrediction]) -> String {
         guard let top = predictions.first else { return "" }
 
         if top.confidence < Self.inSetCosineFloor {
-            return "[BioCLIP: low confidence - species likely outside the trail list; describe what is visible in the photo]"
+            return "[BioCLIP: low confidence — species likely outside the trail list; describe what is visible in the photo]"
         }
 
         let topN = Array(predictions.prefix(3))
+        let topCos = top.confidence
+        let window = Self.tiedCosineWindow
 
-        let candidates = topN.map { p -> String in
-            let label = p.confidence >= Self.highConfidenceCosine ? "likely" : "possible"
-            var s = label + " " + p.commonName
-            if let sci = p.scientificName {
-                s += " (" + sci + ")"
+        // Tied subset: candidates within window of #1 (includes #1).
+        let tiedSubset = topN.filter { (topCos - $0.confidence) <= window }
+
+        // Shared genus of the TIED subset only.
+        let tiedGenera = tiedSubset.compactMap { Self.genusEpithet($0.scientificName) }
+        let tiedSharedGenus: String? = {
+            guard tiedGenera.count == tiedSubset.count,
+                  let g = tiedGenera.first,
+                  Set(tiedGenera).count == 1
+            else { return nil }
+            return g
+        }()
+
+        // Numbered cards with inline "lower confidence" markers.
+        let numberedCards = topN.enumerated()
+            .map { (i, p) -> String in
+                var line = "\(i + 1). " + cardFor(p)
+                if (topCos - p.confidence) > window {
+                    line += "  ← lower classifier confidence"
+                }
+                return line
             }
-            return s
-        }.joined(separator: "; ")
+            .joined(separator: "\n")
 
-        let genera = topN.compactMap { Self.genusEpithet($0.scientificName) }
-        if genera.count == topN.count, let g = genera.first, Set(genera).count == 1 {
-            return "[BioCLIP candidates all in genus " + g + ": " + candidates + ". Species ID is uncertain (~50% top-1 accuracy) but the genus is reliable - speak about " + g + " traits if asked, and only commit to a species when visible cues support it.]"
+        let windowStr = String(format: "%.2f", window)
+        let tiedN = tiedSubset.count
+        let tiedNames = tiedSubset
+            .map { $0.commonName.isEmpty ? ($0.scientificName ?? $0.name) : $0.commonName }
+            .joined(separator: " / ")
+
+        let lead: String
+        if tiedN == 1 {
+            // Top-1 dominant.
+            lead = "[BioCLIP candidates (top-3). #1 is materially more confident than the others (marked '← lower classifier confidence'). Lead with #1 unless its card clearly conflicts with what you see in the photo, in which case fall back to a shared genus if there is one or say plainly that the image doesn't match any listed candidate. Do not propose species not on this list.\nCards:"
+        } else if let g = tiedSharedGenus {
+            // Tied subset shares a genus → commit to genus.
+            lead = "[BioCLIP candidates (top-3). The top \(tiedN) candidates (\(tiedNames)) are within ~\(windowStr) cosine of each other and all belong to genus '\(g)'. The classifier is NOT decisive at the species level. Your safest answer is the genus '\(g)'. Only commit to a specific species if you can point to a clear morphological discriminator in the photo. Do not propose species not on this list.\nCards:"
+        } else {
+            // Tied subset has mixed genera → name all.
+            lead = "[BioCLIP candidates (top-3). The top \(tiedN) candidates (\(tiedNames)) are within ~\(windowStr) cosine of each other and belong to different genera — the classifier is NOT decisive between them. Name ALL the tied candidates together in your answer (e.g. \"this looks like either X or Y\"), or describe by general type if none of them clearly fits. Do not pick one over the others without a clear visible discriminator. Do not propose species not on this list.\nCards:"
         }
 
-        return "[BioCLIP candidates (top-3): " + candidates + ". Top-1 may be wrong (~50% top-1, ~80% top-5 on PlantNet); pick whichever best matches the visible cues, or describe by genus if unsure.]"
+        return lead + "\n" + numberedCards + "]"
     }
 
     // MARK: - Image Preprocessing

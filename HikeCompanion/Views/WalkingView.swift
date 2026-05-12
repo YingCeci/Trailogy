@@ -1045,7 +1045,7 @@ struct WalkingView: View {
                 // so it has a strong prior on what the image shows.
                 if let photo = photoForThisTurn, let cg = photo.cgImage {
                     bioclip.loadIfNeeded()
-                    let predictions = bioclip.classify(image: cg, topK: 5)
+                    let predictions = bioclip.classify(image: cg, topK: 3)
                     let bioclipTag = bioclip.formatForPrompt(predictions: predictions)
                     if !bioclipTag.isEmpty {
                         gemma.bioclipContext = bioclipTag
