@@ -21,6 +21,13 @@ struct ContentView: View {
     @StateObject private var rag = RAGService()
     @StateObject private var router = AppRouter()
 
+    /// iOS scene state — used to gate the RAG preload below.
+    @Environment(\.scenePhase) private var scenePhase
+
+    /// One-shot latch so preload runs exactly once across the app
+    /// lifetime, the FIRST time the scene reaches `.active`.
+    @State private var didPreloadRAG = false
+
     var body: some View {
         ZStack {
             switch router.screen {
@@ -44,12 +51,25 @@ struct ContentView: View {
         .environmentObject(tts)
         .environmentObject(speech)
         .environmentObject(rag)
-        // Preload the MiniLM embedder at launch in the background.
-        // ~40 MB resident (small next to Gemma's 2.8 GB and Kokoro's
-        // ~300 MB peak), and first-run downloads ~80 MB from HF — so
-        // we start that before the user has a chance to ask. By the
-        // time they hit the mic, the embedder is hot.
-        .task {
+        // Preload the bundled MiniLM embedder, but ONLY after the
+        // scene reaches `.active`. Doing this in a bare `.task`
+        // modifier at view-appear time races with iOS's "prewarming"
+        // phase — the app exists but isn't yet active, and Metal
+        // command buffer submissions from that state are rejected
+        // with `kIOGPUCommandBufferCallbackErrorBackgroundExecutionNotPermitted`,
+        // which surfaces as a C++ std::runtime_error from MLX that
+        // Swift cannot catch (process terminates).
+        //
+        // `.task(id: scenePhase)` re-runs the body whenever scenePhase
+        // changes, INCLUDING the initial value at view appearance —
+        // unlike `.onChange`, which only fires on transitions. The
+        // body is gated on `.active` and uses `didPreloadRAG` as a
+        // one-shot latch so the model loads exactly once across the
+        // app lifetime (and stays loaded across foreground/background
+        // cycles — it's only ~87 MB).
+        .task(id: scenePhase) {
+            guard scenePhase == .active, !didPreloadRAG else { return }
+            didPreloadRAG = true
             do {
                 try await rag.preload()
             } catch {
