@@ -76,6 +76,29 @@ struct ContentView: View {
                 print("[RAG] preload failed: \(error.localizedDescription) — retrieval will retry on first use")
             }
         }
+        // Halt in-flight GPU work the moment the scene leaves `.active`.
+        //
+        // iOS forbids Metal command buffer submissions from a
+        // backgrounded app. If Kokoro is mid-narration when the user
+        // swipes up, the synth loop will try to schedule the next
+        // chunk's buffer, Metal rejects it with
+        // `kIOGPUCommandBufferCallbackErrorBackgroundExecutionNotPermitted`,
+        // and MLX's C++ guard throws std::runtime_error → process
+        // terminates (Swift can't catch C++ exceptions).
+        //
+        // `tts.stop()` cancels the synth loop, halts playback, and
+        // flips `isRunning = false` synchronously on main. The
+        // currently-executing GPU chunk (if any) typically completes
+        // before iOS fully backgrounds — the race window is narrow
+        // but not zero. Mid-Gemma-generation backgrounding remains a
+        // residual crash risk; cancelling that cleanly would require
+        // stream-level cancellation in mlx-swift-lm.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase != .active {
+                print("[App] scenePhase → \(newPhase), halting Kokoro to avoid background GPU crash")
+                tts.stop()
+            }
+        }
         .sheet(isPresented: $router.debugVisible) {
             DebugView()
                 .environmentObject(gemma)
