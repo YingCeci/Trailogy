@@ -106,7 +106,7 @@ struct CameraView: View {
                 Text("Camera access needed")
                     .font(AppFont.sans(20, .semibold))
                     .foregroundStyle(.white)
-                Text("Enable camera access in Settings → HikeCompanion to take a picture for the assistant.")
+                Text("Enable camera access in Settings → Trailogy to take a picture for the assistant.")
                     .font(AppFont.sans(13, .medium))
                     .foregroundStyle(.white.opacity(0.7))
                     .multilineTextAlignment(.center)

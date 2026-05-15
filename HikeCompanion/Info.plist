@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>HikeCompanion</string>
+	<string>Trailogy</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -21,11 +21,11 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSCameraUsageDescription</key>
-	<string>HikeCompanion uses the camera so you can show what you're looking at when you ask a question.</string>
+	<string>Trailogy uses the camera so you can show what you're looking at when you ask a question.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>HikeCompanion uses the microphone to hear your questions about the trail.</string>
+	<string>Trailogy uses the microphone to hear your questions about the trail.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>HikeCompanion converts your spoken questions into text for the assistant. All recognition happens on-device.</string>
+	<string>Trailogy converts your spoken questions into text for the assistant. All recognition happens on-device.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

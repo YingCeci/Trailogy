@@ -162,7 +162,7 @@ enum RecognizerError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .notAuthorized:
-            return "Microphone or speech recognition permission denied. Enable in Settings → HikeCompanion."
+            return "Microphone or speech recognition permission denied. Enable in Settings → Trailogy."
         case .unavailable:
             return "Speech recognizer not available on this device or locale."
         }
