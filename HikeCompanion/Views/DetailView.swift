@@ -62,7 +62,18 @@ struct DetailView: View {
                 }
 
                 // Bottom action card
-                VStack(spacing: 16) {
+                VStack(spacing: 14) {
+                    // One-line trail tagline (mockup commit 7c5ba6c —
+                    // sits above the stats row and below the chrome).
+                    Text(trail.summary)
+                        .font(AppFont.sans(14.5, .regular))
+                        .foregroundStyle(AppColor.ink100.opacity(0.92))
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(2)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 4)
+
                     HStack(spacing: 10) {
                         statText(value: formattedMiles, suffix: "mi")
                         smallDot

@@ -13,33 +13,25 @@ struct PickerView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Header
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Rectangle()
-                                .frame(width: 16, height: 1)
-                                .foregroundStyle(AppColor.lime.opacity(0.55))
-                            Text("Nature, the best teacher.")
-                                .font(AppFont.sans(10, .heavy))
-                                .tracking(2.4)
-                                .textCase(.uppercase)
-                                .foregroundStyle(AppColor.lime)
-                        }
-                        .padding(.bottom, 18)
-
-                        Text("Trails near you")
-                            .font(AppFont.sans(28, .bold))
+                    // Header — mirrors design/mockups.html `.picker-head`.
+                    // Replaces the earlier "Nature, the best teacher /
+                    // Trails near you / Pittsburgh" stack with a single
+                    // softer question paired with a lime location pin —
+                    // the visual answer to "where". The discipline of
+                    // absences (no profile chip, no eyebrow, no city
+                    // label) is part of the design.
+                    HStack(spacing: 10) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppColor.lime)
+                        Text("Where should Trailogy take you?")
+                            .font(AppFont.sans(18, .regular))
                             .foregroundStyle(AppColor.ink100)
-                            .tracking(-0.5)
-
-                        Text("Pittsburgh")
-                            .font(AppFont.sans(13, .medium))
-                            .foregroundStyle(AppColor.ink60)
-                            .padding(.top, 4)
+                            .tracking(-0.2)
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, 6)
-                    .padding(.bottom, 22)
+                    .padding(.bottom, 26)
 
                     // Cards
                     VStack(spacing: 18) {
@@ -156,7 +148,10 @@ private struct TrailCard: View {
     }
 
     /// Bottom of the card — solid dark text panel with region eyebrow,
-    /// trail name, and the length / difficulty / time stats row.
+    /// trail name, the one-line tagline, and the length / difficulty /
+    /// time stats row. Tagline added per design/mockups.html
+    /// commit 7c5ba6c ("Add one-line trail summary to picker cards
+    /// and detail view"); reads as a subtitle under the name.
     private var textPanel: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(trail.region.uppercased())
@@ -173,6 +168,14 @@ private struct TrailCard: View {
                 .minimumScaleFactor(0.8)
                 .fixedSize(horizontal: false, vertical: true)
 
+            Text(trail.summary)
+                .font(AppFont.sans(13, .regular))
+                .foregroundStyle(AppColor.ink80)
+                .lineSpacing(2)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 1)
+
             HStack(spacing: 10) {
                 Text("\(formattedMiles) mi")
                 circleDot
@@ -181,8 +184,8 @@ private struct TrailCard: View {
                 Text(durationLabel)
             }
             .font(AppFont.sans(13, .medium))
-            .foregroundStyle(AppColor.ink80)
-            .padding(.top, 2)
+            .foregroundStyle(AppColor.ink60)
+            .padding(.top, 4)
             .lineLimit(1)
             .minimumScaleFactor(0.85)
         }

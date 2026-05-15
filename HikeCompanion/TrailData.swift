@@ -60,6 +60,12 @@ struct TrailStop: Identifiable, Hashable {
 struct Trail: Identifiable, Hashable {
     let id: String
     let name: String
+    /// One-line tagline displayed under the trail name on picker cards
+    /// and the detail view. Mirrors the mockup's `summary` field.
+    /// Should evoke the character of the trail, not duplicate the stats
+    /// (no distance / time / difficulty — those have their own row).
+    /// Examples: "A loop through hemlocks older than the country."
+    let summary: String
     let region: String
     let parkLocation: String
     let distanceMiles: Double
@@ -128,6 +134,7 @@ enum TrailData {
     static let kildoo = Trail(
         id: "kildoo",
         name: "Kildoo Trail",
+        summary: "A loop through hemlocks older than the country.",
         region: "McConnells Mill",
         parkLocation: "McConnells Mill State Park",
         distanceMiles: 2.0,
@@ -255,6 +262,7 @@ enum TrailData {
     static let oldField = Trail(
         id: "oldfield",
         name: "Old Field & Jennings",
+        summary: "A wildflower loop through reclaimed farms.",
         region: "Wildflower Reserve",
         parkLocation: "Raccoon Creek State Park",
         distanceMiles: 2.3,
@@ -374,6 +382,7 @@ enum TrailData {
     static let tranquil = Trail(
         id: "tranquil",
         name: "Tranquil Trail",
+        summary: "A wooded creek walk in the heart of Pittsburgh.",
         region: "Frick Park",
         parkLocation: "Frick Park",
         distanceMiles: 1.1,
