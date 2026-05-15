@@ -25,6 +25,36 @@ struct TrailStop: Identifiable, Hashable {
     let sentences: [String]
     /// One-line factual summary used in the post-tour journal entry.
     let journalFact: String
+    /// What to notice on the WALK to the next stop — surfaced in the
+    /// "ON THE WAY" panel during between/approaching phases. The
+    /// engagement-loop half: invites the user to look for something
+    /// specific on the trail between stops. Nil on the last stop of
+    /// a trail (no next stop to walk to). See design/README.md
+    /// "Look-for / payoff engagement loop" for the design rationale.
+    let lookFor: String?
+    /// Callback that resolves the PREVIOUS stop's `lookFor` — prepended
+    /// to the spoken narration on arrival ("If you saw a long
+    /// stone-lined trench…"). Nil on the first stop of a trail (no
+    /// previous lookFor to resolve).
+    let payoff: String?
+
+    init(
+        number: Int,
+        name: String,
+        imageURL: URL?,
+        sentences: [String],
+        journalFact: String,
+        lookFor: String? = nil,
+        payoff: String? = nil
+    ) {
+        self.number = number
+        self.name = name
+        self.imageURL = imageURL
+        self.sentences = sentences
+        self.journalFact = journalFact
+        self.lookFor = lookFor
+        self.payoff = payoff
+    }
 }
 
 struct Trail: Identifiable, Hashable {
@@ -70,6 +100,19 @@ extension TrailStop {
     var spokenNarration: String {
         sentences.joined(separator: " ")
     }
+
+    /// Spoken narration with the optional `payoff` prepended as the
+    /// first sentence. Used when the user arrives at a stop after a
+    /// walk where a `lookFor` was suggested — the payoff is the
+    /// callback resolution, then the regular sentences continue. If
+    /// no payoff is set (e.g. stop 1 of a trail), this is identical
+    /// to `spokenNarration`.
+    var spokenNarrationWithPayoff: String {
+        if let payoff, !payoff.isEmpty {
+            return ([payoff] + sentences).joined(separator: " ")
+        }
+        return spokenNarration
+    }
 }
 
 enum TrailStatus: Equatable {
@@ -103,7 +146,8 @@ enum TrailData {
                     "Howe truss design — one of two left in Pennsylvania.",
                     "The mill ground grain here until 1928."
                 ],
-                journalFact: "Built in 1874 — one of two Howe-truss bridges left in Pennsylvania. The mill ground grain here until 1928."
+                journalFact: "Built in 1874 — one of two Howe-truss bridges left in Pennsylvania. The mill ground grain here until 1928.",
+                lookFor: "Look for the mill race — a stone-lined channel along the creek that fed the wheel."
             ),
             TrailStop(
                 number: 2,
@@ -114,7 +158,9 @@ enum TrailData {
                     "The orange streaks are iron oxide.",
                     "Groundwater carries it out of the rock."
                 ],
-                journalFact: "Sandstone laid down 320 million years ago — the orange streaks are iron oxide leached from the rock by groundwater."
+                journalFact: "Sandstone laid down 320 million years ago — the orange streaks are iron oxide leached from the rock by groundwater.",
+                lookFor: "Listen for the falls. You'll hear them before you see them.",
+                payoff: "If you saw a long stone-lined trench along the creek, that was the old mill race."
             ),
             TrailStop(
                 number: 3,
@@ -126,7 +172,9 @@ enum TrailData {
                     "Above you, hemlocks lean over the gorge.",
                     "Some of them are three centuries old."
                 ],
-                journalFact: "The eastern hemlocks above the gorge are roughly three centuries old — older than the country."
+                journalFact: "The eastern hemlocks above the gorge are roughly three centuries old — older than the country.",
+                lookFor: "Watch the creek beside the trail — it narrows and quickens as the gorge tightens before the bridge.",
+                payoff: "You probably heard the falls a quarter-mile back — water travels far in a gorge."
             ),
             TrailStop(
                 number: 4,
@@ -137,7 +185,9 @@ enum TrailData {
                     "The trail returns north along the western bank.",
                     "The creek narrows and quickens through the gorge."
                 ],
-                journalFact: "South crossing back to the western bank. The creek narrows here — a good spot to pause."
+                journalFact: "South crossing back to the western bank. The creek narrows here — a good spot to pause.",
+                lookFor: "Look for one large boulder in the streambed — bigger than the rest, sometimes slick with green algae.",
+                payoff: "If you noticed the creek tightening, you were watching it carve a narrower channel here — same water, faster motion."
             ),
             TrailStop(
                 number: 5,
@@ -148,7 +198,8 @@ enum TrailData {
                     "It gave the waterway its name.",
                     "Algae makes it slick — hence slippery."
                 ],
-                journalFact: "The 80-ton sandstone boulder in the creek that gave the waterway its name."
+                journalFact: "The 80-ton sandstone boulder in the creek that gave the waterway its name.",
+                payoff: "That algae-coated boulder is the Slippery Rock itself — eighty tons of sandstone that gave the creek its name."
             )
         ],
         segmentLabels: [
@@ -214,7 +265,8 @@ enum TrailData {
                     "These woods hold one of the richest spring wildflower displays in Pennsylvania.",
                     "Trilliums, Virginia bluebells, and Dutchman's breeches all bloom here."
                 ],
-                journalFact: "The southwest trailhead at the Wildflower Reserve — gateway to one of Pennsylvania's richest spring ephemeral displays."
+                journalFact: "The southwest trailhead at the Wildflower Reserve — gateway to one of Pennsylvania's richest spring ephemeral displays.",
+                lookFor: "Look for trillium on the forest floor — three white petals on a single stem."
             ),
             TrailStop(
                 number: 2,
@@ -225,7 +277,9 @@ enum TrailData {
                     "In late April, the forest floor here turns white with large-flowered trillium.",
                     "Wood thrushes and ovenbirds sing from the surrounding canopy."
                 ],
-                journalFact: "Wildflower Meadow — large-flowered trillium carpets the forest floor in late April."
+                journalFact: "Wildflower Meadow — large-flowered trillium carpets the forest floor in late April.",
+                lookFor: "Look for old fence posts in the woods. These slopes used to be farmland.",
+                payoff: "If you spotted three white petals close to the ground, you found trillium — it takes seven years to bloom from seed."
             ),
             TrailStop(
                 number: 3,
@@ -236,7 +290,9 @@ enum TrailData {
                     "The slope below drops down toward Raccoon Creek.",
                     "On still mornings, mist rises through the trees in the valley."
                 ],
-                journalFact: "East Overlook — the slope drops toward Raccoon Creek; Old Field and Jennings join here."
+                journalFact: "East Overlook — the slope drops toward Raccoon Creek; Old Field and Jennings join here.",
+                lookFor: "On the way down, count the fallen trees left across the slope.",
+                payoff: "Those weathered posts marked the edge of an 1800s farm — the forest reclaimed it."
             ),
             TrailStop(
                 number: 4,
@@ -247,7 +303,9 @@ enum TrailData {
                     "Look for jack-in-the-pulpit and wild ginger close to the path.",
                     "Pileated woodpeckers work the dead snags here year-round."
                 ],
-                journalFact: "Forest Glen — deep canopy along Jennings Trail; jack-in-the-pulpit and pileated woodpeckers."
+                journalFact: "Forest Glen — deep canopy along Jennings Trail; jack-in-the-pulpit and pileated woodpeckers.",
+                lookFor: "Listen for woodpeckers drumming on the dead snags.",
+                payoff: "Fallen trees here are left in place — they're nurseries for moss, fungi, and new saplings."
             ),
             TrailStop(
                 number: 5,
@@ -258,7 +316,8 @@ enum TrailData {
                     "The understory opens up — sugar maple, beech, and red oak.",
                     "A few quiet minutes and the loop is closed."
                 ],
-                journalFact: "The loop closes — sugar maple, beech, and red oak see us back to the start."
+                journalFact: "The loop closes — sugar maple, beech, and red oak see us back to the start.",
+                payoff: "That tapping was likely a pileated woodpecker — the largest in eastern forests."
             )
         ],
         segmentLabels: [
@@ -325,7 +384,8 @@ enum TrailData {
                     "Frick Park is Pittsburgh's largest historic park.",
                     "The forest here regrew over a century after logging."
                 ],
-                journalFact: "The trail begins off Beechwood Boulevard. Frick Park is Pittsburgh's largest historic park — 644 acres donated by Helen Clay Frick in 1919."
+                journalFact: "The trail begins off Beechwood Boulevard. Frick Park is Pittsburgh's largest historic park — 644 acres donated by Helen Clay Frick in 1919.",
+                lookFor: "Look for skunk cabbage in the wet spots — broad green hoods close to the ground."
             ),
             TrailStop(
                 number: 2,
@@ -336,7 +396,9 @@ enum TrailData {
                     "It empties into Nine Mile Run downstream.",
                     "The valley was carved during the last glacial period."
                 ],
-                journalFact: "Fern Hollow Creek runs alongside the trail and empties into Nine Mile Run downstream (daylit and restored in 2006)."
+                journalFact: "Fern Hollow Creek runs alongside the trail and empties into Nine Mile Run downstream (daylit and restored in 2006).",
+                lookFor: "Look for old streetcar bricks along the creek bank.",
+                payoff: "Skunk cabbage is the first plant to bloom each year — it can melt its own snow with metabolic heat."
             ),
             TrailStop(
                 number: 3,
@@ -347,7 +409,8 @@ enum TrailData {
                     "Some of these trees are over 150 years old.",
                     "The understory is mostly spicebush and witch hazel."
                 ],
-                journalFact: "Mature oaks and tulip poplars — some over 150 years old. Turnaround point of this out-and-back walk."
+                journalFact: "Mature oaks and tulip poplars — some over 150 years old. Turnaround point of this out-and-back walk.",
+                payoff: "Those red bricks are from Pittsburgh's old streetcar lines — many washed downstream over the decades."
             )
         ],
         segmentLabels: [

@@ -684,6 +684,30 @@ struct WalkingView: View {
                     .foregroundStyle(AppColor.ink60)
                     .padding(.top, 14)
             }
+
+            // "ON THE WAY" engagement panel — surfaces the `lookFor`
+            // prompt from the stop the user just left, inviting them
+            // to notice something specific on the walk to the next
+            // stop. The corresponding `payoff` will play as the first
+            // line of narration on arrival.
+            //
+            // Source: design/mockups.html `.wq-lookfor` block. Auto-
+            // hides via the `if let` when the previous stop has no
+            // lookFor (e.g. final segment after the trail's last
+            // stop's lookFor, or trails that didn't author one).
+            if let lookFor = currentStop.lookFor {
+                VStack(spacing: 6) {
+                    Text("On the way")
+                        .eyebrowStyle(AppColor.lime)
+                    Text(lookFor)
+                        .font(AppFont.sans(15, .medium))
+                        .foregroundStyle(AppColor.ink80)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(3)
+                        .padding(.horizontal, 4)
+                }
+                .padding(.top, 28)
+            }
         }
         .padding(.horizontal, 32)
     }
@@ -1436,8 +1460,13 @@ struct WalkingView: View {
             gemma.setActiveContext(trail: trail, stopIdx: stopIdx)
             // Auto-narrate the stop's content on arrival. The lyric
             // (= what Kokoro is saying) is the only at-stop text.
+            // `spokenNarrationWithPayoff` prepends the optional
+            // `payoff` line (which resolves the previous stop's
+            // `lookFor` prompt) so the user hears the callback first.
+            // No-op for stops without a payoff — falls back to plain
+            // spokenNarration.
             speakNarration(
-                currentStop.spokenNarration,
+                currentStop.spokenNarrationWithPayoff,
                 preamble: "Arriving at \(currentStop.name)…"
             )
         case .complete:
