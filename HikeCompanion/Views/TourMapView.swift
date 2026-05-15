@@ -60,7 +60,7 @@ struct TourMapView: View {
                         center: .center,
                         startRadius: 20, endRadius: 240
                     )
-                    TrailMapView(activeStop: activeStopNumber, passedThroughStop: activeStopNumber)
+                    TrailMapView(trail: trail, activeStop: activeStopNumber, passedThroughStop: activeStopNumber)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                 }

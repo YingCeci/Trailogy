@@ -1,276 +1,175 @@
-// TrailMapShape.swift
-// SwiftUI re-implementation of the SVG trail map from design/mockups.html
-// (the Kildoo Trail loop along Slippery Rock Creek, with 5 numbered
-// waypoints). Used both in DetailView (full-screen pre-tour map) and
-// inside the in-walk full-screen TourMapView.
+// TrailMapShape.swift  (filename retained for callsite compat;
+// contents replaced by a MapKit-backed implementation)
 //
-// The shape is normalized to a 320×540 reference grid to match the SVG.
-// Pass `activeStop` (1-based) to highlight the current stop with a lime
-// pulsing halo; pass `passedThroughStop` to draw the east-leg as solid
-// lime up to that stop and dashed past it.
+// Native SwiftUI Map view that renders any Trail's actual polyline +
+// stop annotations on top of Apple Maps' standard dark tiles. Replaces
+// the previous hand-drawn Kildoo-only SVG renderer (which made
+// Tranquil and Old Field show Kildoo's loop with wrong stop counts).
+//
+// Mockup parity: design/mockups.html uses Leaflet + CARTO Dark Matter
+// tiles; iOS uses MapKit's standard map style with the system dark
+// color scheme — same visual register (real terrain + roads + rivers
+// underneath, lime polyline on top, lime markers per stop).
+//
+// API contract preserved from the previous file: same
+// `activeStop` and `passedThroughStop` 1-based parameters. Now also
+// takes `trail` so the view knows which trail's coordinates to draw.
 
+import MapKit
 import SwiftUI
 
 struct TrailMapView: View {
-    /// 1-based stop number that is currently active (0 = none).
+    /// The trail whose path + stops to render. Reads
+    /// `trail.path` for the polyline and `trail.stops[*].coordinate`
+    /// for the per-stop annotations.
+    let trail: Trail
+    /// 1-based stop number that is currently active. Drawn with a
+    /// filled lime circle and a numeric label; pulses subtly via the
+    /// shadow halo. 0 = no active stop (e.g. pre-tour overview).
     var activeStop: Int = 1
-    /// 1-based stop number up to which the user has walked. The east-leg
-    /// path is drawn solid lime up to (and through) this stop, dashed past.
-    /// 0 = nothing walked yet (pre-tour); same as activeStop on first stop.
+    /// 1-based stop number up to which the user has walked. Stops at
+    /// or below this number render as "passed" (lime outlined). Stops
+    /// past it render as "future" (dim filled circle). The active
+    /// stop's marker overrides whichever category it would otherwise
+    /// fall into.
     var passedThroughStop: Int = 0
 
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let h = geo.size.height
-            // The mockup SVG is 320x540; preserve that aspect via scaling.
-            let scaleX = w / 320.0
-            let scaleY = h / 540.0
-            let s = min(scaleX, scaleY)
-            // Center in the available space
-            let offsetX = (w - 320 * s) / 2
-            let offsetY = (h - 540 * s) / 2
+    /// Initial camera region fit around the polyline (with padding).
+    /// Computed once from `trail.path` (or `stops` as fallback) so the
+    /// whole trail fits in view on first render. After that, the user
+    /// can pan/zoom freely; the camera doesn't auto-recenter on stop
+    /// changes (would feel jumpy during a tour).
+    @State private var cameraPosition: MapCameraPosition
 
-            ZStack {
-                // Topo speckles
-                ForEach(speckles, id: \.self) { p in
-                    Circle()
-                        .frame(width: 1.6, height: 1.6)
-                        .foregroundStyle(Color.white.opacity(0.18 * 0.6))
-                        .position(x: offsetX + p.x * s, y: offsetY + p.y * s)
-                }
-
-                // Slippery Rock Creek — wide soft band + thin core line
-                creekShape
-                    .stroke(Color(red: 140/255, green: 180/255, blue: 200/255).opacity(0.18 * 0.6),
-                            style: StrokeStyle(lineWidth: 14, lineCap: .round))
-                    .frame(width: 320, height: 540)
-                    .scaleEffect(s, anchor: .topLeading)
-                    .offset(x: offsetX, y: offsetY)
-
-                creekShape
-                    .stroke(Color(red: 140/255, green: 180/255, blue: 200/255).opacity(0.55),
-                            style: StrokeStyle(lineWidth: 2.8, lineCap: .round))
-                    .frame(width: 320, height: 540)
-                    .scaleEffect(s, anchor: .topLeading)
-                    .offset(x: offsetX, y: offsetY)
-
-                // East leg — passed portion solid lime
-                if passedThroughStop > 0 {
-                    eastLegPassedPath(uptoStop: passedThroughStop)
-                        .stroke(AppColor.lime.opacity(0.7),
-                                style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
-                        .frame(width: 320, height: 540)
-                        .scaleEffect(s, anchor: .topLeading)
-                        .offset(x: offsetX, y: offsetY)
-                }
-                // East leg — full dashed gray (drawn under the passed portion)
-                eastLegFullPath
-                    .stroke(AppColor.ink100.opacity(0.4),
-                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [3, 3]))
-                    .frame(width: 320, height: 540)
-                    .scaleEffect(s, anchor: .topLeading)
-                    .offset(x: offsetX, y: offsetY)
-
-                // West leg — return path, always dashed
-                westLegPath
-                    .stroke(AppColor.ink100.opacity(0.30),
-                            style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [3, 3]))
-                    .frame(width: 320, height: 540)
-                    .scaleEffect(s, anchor: .topLeading)
-                    .offset(x: offsetX, y: offsetY)
-
-                // Waypoints
-                ForEach(waypoints, id: \.number) { wp in
-                    waypointMarker(wp: wp, s: s, offsetX: offsetX, offsetY: offsetY)
-                }
-
-                // Compass (top-right)
-                compass
-                    .position(x: offsetX + 286 * s, y: offsetY + 50 * s)
-
-                // Scale bar (bottom-left)
-                scaleBar
-                    .position(x: offsetX + 50 * s, y: offsetY + 510 * s)
-            }
-        }
+    init(trail: Trail, activeStop: Int = 1, passedThroughStop: Int = 0) {
+        self.trail = trail
+        self.activeStop = activeStop
+        self.passedThroughStop = passedThroughStop
+        self._cameraPosition = State(
+            initialValue: .region(Self.initialRegion(for: trail))
+        )
     }
 
-    // MARK: - Sub-views
+    var body: some View {
+        Map(position: $cameraPosition) {
+            // The lime trail polyline. `MapPolyline(coordinates:)`
+            // renders a Metal-backed line on top of Apple Maps tiles;
+            // the system handles antialiasing and tile composition.
+            if !trail.path.isEmpty {
+                MapPolyline(coordinates: trail.path)
+                    .stroke(AppColor.lime.opacity(0.95), lineWidth: 4)
+            }
+
+            // Per-stop annotations. We use `Annotation` (not `Marker`)
+            // so we can render our custom-styled lime/dark bubble.
+            ForEach(trail.stops) { stop in
+                Annotation(stop.name, coordinate: stop.coordinate, anchor: .center) {
+                    stopMarker(for: stop)
+                }
+                .annotationTitles(.hidden)
+            }
+        }
+        // Standard Apple Maps tiles, flat (not 3D), in dark mode —
+        // matches the design language. The app forces .dark via
+        // ContentView, so the standard style renders dark
+        // automatically.
+        .mapStyle(.standard(elevation: .flat))
+        // Disable the auto-controls we don't want: no compass, no
+        // user location dot (we're not tracking the user yet), no
+        // scale bar. Trail view is read-only contextual; pan/zoom
+        // stays available by default.
+        .mapControlVisibility(.hidden)
+        // Tint propagates to standard MapKit controls if they ever
+        // appear; harmless when hidden.
+        .tint(AppColor.lime)
+    }
+
+    // MARK: - Per-stop marker
 
     @ViewBuilder
-    private func waypointMarker(wp: WaypointPoint, s: CGFloat, offsetX: CGFloat, offsetY: CGFloat) -> some View {
-        let isActive = wp.number == activeStop
-        let isPassed = wp.number < activeStop || wp.number <= passedThroughStop && wp.number != activeStop
-        let cx = offsetX + wp.x * s
-        let cy = offsetY + wp.y * s
-
+    private func stopMarker(for stop: TrailStop) -> some View {
+        let isActive = stop.number == activeStop
+        let isPassed = stop.number < activeStop || (stop.number <= passedThroughStop && !isActive)
         ZStack {
             if isActive {
+                // Soft outer halo for emphasis (mockup parity:
+                // CARTO Dark Matter active waypoint pulses lime).
                 Circle()
-                    .fill(AppColor.lime.opacity(0.20))
-                    .frame(width: 48 * s, height: 48 * s)
-                Circle()
-                    .fill(AppColor.lime.opacity(0.36))
-                    .frame(width: 32 * s, height: 32 * s)
+                    .fill(AppColor.lime.opacity(0.22))
+                    .frame(width: 44, height: 44)
                 Circle()
                     .fill(AppColor.lime)
-                    .frame(width: 26 * s, height: 26 * s)
-                Text("\(wp.number)")
+                    .frame(width: 28, height: 28)
+                    .shadow(color: AppColor.lime.opacity(0.6), radius: 8)
+                Text("\(stop.number)")
                     .font(.system(size: 13, weight: .heavy))
                     .foregroundStyle(AppColor.limeText)
             } else if isPassed {
                 Circle()
-                    .fill(AppColor.lime.opacity(0.18))
-                    .frame(width: 26 * s, height: 26 * s)
-                    .overlay(Circle().stroke(AppColor.lime.opacity(0.6), lineWidth: 1.3))
-                Text("\(wp.number)")
+                    .fill(AppColor.lime.opacity(0.20))
+                    .frame(width: 26, height: 26)
+                    .overlay(Circle().stroke(AppColor.lime.opacity(0.7), lineWidth: 1.3))
+                Text("\(stop.number)")
                     .font(.system(size: 12, weight: .heavy))
                     .foregroundStyle(AppColor.lime.opacity(0.85))
             } else {
                 Circle()
                     .fill(AppColor.glassDark93)
-                    .frame(width: 26 * s, height: 26 * s)
+                    .frame(width: 26, height: 26)
                     .overlay(Circle().stroke(AppColor.ink100.opacity(0.7), lineWidth: 1.3))
-                Text("\(wp.number)")
+                Text("\(stop.number)")
                     .font(.system(size: 12, weight: .heavy))
                     .foregroundStyle(AppColor.ink100.opacity(0.92))
             }
-
-            // Label outside the marker
-            Text(wp.label)
-                .font(.system(size: 12, weight: .bold))
-                .tracking(0.4)
-                .foregroundStyle(isActive ? AppColor.lime : (isPassed ? AppColor.ink100.opacity(0.55) : AppColor.ink100.opacity(0.85)))
-                .shadow(color: AppColor.mapBg, radius: 1.5)
-                .offset(wp.labelOffset)
-        }
-        .position(x: cx, y: cy)
-    }
-
-    private var compass: some View {
-        VStack(spacing: 0) {
-            Text("N")
-                .font(.system(size: 10, weight: .heavy))
-                .foregroundStyle(AppColor.ink100.opacity(0.55))
-            Rectangle()
-                .frame(width: 1, height: 16)
-                .foregroundStyle(AppColor.ink100.opacity(0.5))
-        }
-        .opacity(0.55)
-    }
-
-    private var scaleBar: some View {
-        VStack(spacing: 4) {
-            Rectangle()
-                .frame(width: 60, height: 1.4)
-                .foregroundStyle(AppColor.ink100.opacity(0.5))
-            Text("¼ MILE")
-                .font(.system(size: 9, weight: .heavy))
-                .tracking(0.6)
-                .foregroundStyle(AppColor.ink100.opacity(0.55))
-        }
-        .opacity(0.6)
-    }
-
-    // MARK: - Geometry
-
-    /// Mostly-vertical sinuous creek through the map.
-    private var creekShape: Path {
-        Path { p in
-            p.move(to: CGPoint(x: 160, y: 52))
-            p.addQuadCurve(to: CGPoint(x: 158, y: 160), control: CGPoint(x: 150, y: 100))
-            p.addQuadCurve(to: CGPoint(x: 152, y: 300), control: CGPoint(x: 166, y: 230))
-            p.addQuadCurve(to: CGPoint(x: 162, y: 440), control: CGPoint(x: 148, y: 370))
-            p.addQuadCurve(to: CGPoint(x: 160, y: 510), control: CGPoint(x: 170, y: 490))
         }
     }
 
-    /// East-bank trail (full path, all waypoints).
-    private var eastLegFullPath: Path {
-        Path { p in
-            p.move(to: CGPoint(x: 160, y: 80))
-            p.addQuadCurve(to: CGPoint(x: 200, y: 170), control: CGPoint(x: 195, y: 105))
-            p.addQuadCurve(to: CGPoint(x: 210, y: 280), control: CGPoint(x: 207, y: 225))
-            p.addQuadCurve(to: CGPoint(x: 195, y: 415), control: CGPoint(x: 215, y: 350))
-            p.addQuadCurve(to: CGPoint(x: 160, y: 498), control: CGPoint(x: 175, y: 475))
+    // MARK: - Camera framing
+
+    /// Compute the initial visible region from a trail's polyline.
+    /// Falls back to stop coordinates if the path is empty (which
+    /// shouldn't happen with the current data but guards against a
+    /// future trail being added without a path).
+    private static func initialRegion(for trail: Trail) -> MKCoordinateRegion {
+        let coords: [CLLocationCoordinate2D]
+        if !trail.path.isEmpty {
+            coords = trail.path
+        } else {
+            coords = trail.stops.map(\.coordinate)
         }
-    }
-
-    /// East-bank trail truncated up to the user's walked stop. Mockup
-    /// shows lime path to stop 3 (Kildoo Falls) when active.
-    private func eastLegPassedPath(uptoStop: Int) -> Path {
-        Path { p in
-            switch uptoStop {
-            case 1:
-                // Just at stop 1 — no walked portion
-                break
-            case 2:
-                p.move(to: CGPoint(x: 160, y: 80))
-                p.addQuadCurve(to: CGPoint(x: 200, y: 170), control: CGPoint(x: 195, y: 105))
-            case 3:
-                p.move(to: CGPoint(x: 160, y: 80))
-                p.addQuadCurve(to: CGPoint(x: 200, y: 170), control: CGPoint(x: 195, y: 105))
-                p.addQuadCurve(to: CGPoint(x: 210, y: 280), control: CGPoint(x: 207, y: 225))
-            case 4:
-                p.move(to: CGPoint(x: 160, y: 80))
-                p.addQuadCurve(to: CGPoint(x: 200, y: 170), control: CGPoint(x: 195, y: 105))
-                p.addQuadCurve(to: CGPoint(x: 210, y: 280), control: CGPoint(x: 207, y: 225))
-                p.addQuadCurve(to: CGPoint(x: 195, y: 415), control: CGPoint(x: 215, y: 350))
-            default:
-                p.move(to: CGPoint(x: 160, y: 80))
-                p.addQuadCurve(to: CGPoint(x: 200, y: 170), control: CGPoint(x: 195, y: 105))
-                p.addQuadCurve(to: CGPoint(x: 210, y: 280), control: CGPoint(x: 207, y: 225))
-                p.addQuadCurve(to: CGPoint(x: 195, y: 415), control: CGPoint(x: 215, y: 350))
-                p.addQuadCurve(to: CGPoint(x: 160, y: 498), control: CGPoint(x: 175, y: 475))
-            }
+        guard let firstLat = coords.map(\.latitude).min(),
+              let lastLat = coords.map(\.latitude).max(),
+              let firstLng = coords.map(\.longitude).min(),
+              let lastLng = coords.map(\.longitude).max()
+        else {
+            // Defensive fallback — center on Pittsburgh.
+            return MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 40.44, longitude: -79.99),
+                span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
+            )
         }
+        let center = CLLocationCoordinate2D(
+            latitude: (firstLat + lastLat) / 2,
+            longitude: (firstLng + lastLng) / 2
+        )
+        // Pad the bounding box by 35% on each axis so the polyline
+        // sits comfortably inside the frame with breathing room for
+        // the stop annotations (which can extend a few points past
+        // the line itself).
+        let latPad = max((lastLat - firstLat) * 1.35, 0.005)
+        let lngPad = max((lastLng - firstLng) * 1.35, 0.005)
+        return MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: latPad, longitudeDelta: lngPad)
+        )
     }
-
-    /// West-bank return path (always dashed).
-    private var westLegPath: Path {
-        Path { p in
-            p.move(to: CGPoint(x: 160, y: 80))
-            p.addQuadCurve(to: CGPoint(x: 122, y: 180), control: CGPoint(x: 125, y: 105))
-            p.addQuadCurve(to: CGPoint(x: 125, y: 295), control: CGPoint(x: 118, y: 240))
-            p.addQuadCurve(to: CGPoint(x: 140, y: 420), control: CGPoint(x: 130, y: 360))
-            p.addQuadCurve(to: CGPoint(x: 160, y: 498), control: CGPoint(x: 150, y: 475))
-        }
-    }
-
-    private struct WaypointPoint {
-        let number: Int
-        let x: CGFloat
-        let y: CGFloat
-        let label: String
-        let labelOffset: CGSize
-    }
-
-    private let waypoints: [WaypointPoint] = [
-        .init(number: 1, x: 160, y: 80,  label: "Covered Bridge & Mill",
-              labelOffset: CGSize(width: 0, height: 38)),
-        .init(number: 2, x: 200, y: 170, label: "Layered Cliffs",
-              labelOffset: CGSize(width: 60, height: 0)),
-        .init(number: 3, x: 210, y: 280, label: "Kildoo Falls",
-              labelOffset: CGSize(width: 60, height: 0)),
-        .init(number: 4, x: 160, y: 498, label: "Eckert Bridge",
-              labelOffset: CGSize(width: 0, height: -28)),
-        .init(number: 5, x: 125, y: 295, label: "Slippery Rock",
-              labelOffset: CGSize(width: -60, height: 0))
-    ]
-
-    private let speckles: [CGPoint] = [
-        CGPoint(x: 50, y: 80),  CGPoint(x: 80, y: 200),
-        CGPoint(x: 60, y: 380), CGPoint(x: 260, y: 100),
-        CGPoint(x: 270, y: 240), CGPoint(x: 250, y: 400),
-        CGPoint(x: 40, y: 460), CGPoint(x: 280, y: 460)
-    ]
 }
 
 #Preview {
     ZStack {
         AppColor.mapBg.ignoresSafeArea()
-        TrailMapView(activeStop: 1, passedThroughStop: 0)
+        TrailMapView(trail: TrailData.kildoo, activeStop: 3, passedThroughStop: 2)
             .padding()
     }
+    .preferredColorScheme(.dark)
 }

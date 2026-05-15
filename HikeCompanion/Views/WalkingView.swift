@@ -21,6 +21,7 @@
 // tap-to-toggle. Hold-to-speak proved to be the more reliable
 // interaction during Phase 2 testing.
 
+import CoreLocation  // CLLocationCoordinate2D for placeholderStop
 import SwiftUI
 import UIKit  // UIImpactFeedbackGenerator / UINotificationFeedbackGenerator
 
@@ -1674,7 +1675,8 @@ struct WalkingView: View {
         name: "—",
         imageURL: nil,
         sentences: [],
-        journalFact: ""
+        journalFact: "",
+        coordinate: CLLocationCoordinate2D(latitude: 0, longitude: 0)
     )
 }
 

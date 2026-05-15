@@ -63,7 +63,7 @@ struct DetailView: View {
                         endRadius: 200
                     )
 
-                    TrailMapView(activeStop: 1, passedThroughStop: 0)
+                    TrailMapView(trail: trail, activeStop: 1, passedThroughStop: 0)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                 }
