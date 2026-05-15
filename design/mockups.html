@@ -198,6 +198,46 @@
   .lime-btn:hover { background: var(--lime-2); }
   .lime-btn:active { transform: scale(0.98); }
 
+  /* State-aware CTA — same lime pill, three states managed via the
+     data-state attribute. Download icon + size when no offline pack,
+     dark progress fill while downloading, play icon + "Begin" when
+     ready. Single button position, three behaviors. */
+  .lime-btn.cta-btn {
+    position: relative;
+    overflow: hidden;
+    --cta-pct: 0%;
+  }
+  .lime-btn.cta-btn .cta-fill {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: var(--cta-pct);
+    background: rgba(0, 0, 0, 0.20);
+    transition: width 120ms linear;
+    z-index: 0;
+  }
+  .lime-btn.cta-btn .cta-row {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+  }
+  .lime-btn.cta-btn .cta-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .lime-btn.cta-btn .cta-icon .i-download,
+  .lime-btn.cta-btn .cta-icon .i-play { display: none; }
+  .lime-btn.cta-btn[data-state="download"] .cta-icon .i-download { display: block; }
+  .lime-btn.cta-btn[data-state="ready"]    .cta-icon .i-play     { display: block; }
+  .lime-btn.cta-btn[data-state="downloading"] .cta-icon { display: none; }
+  .lime-btn.cta-btn[data-state="downloading"] {
+    cursor: default;
+    /* prevent the active-press scale while progressing */
+  }
+  .lime-btn.cta-btn[data-state="downloading"]:active { transform: none; }
+
 
   /* =================================================================
      PICKER
@@ -207,26 +247,21 @@
     height: 100%;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    /* Lime glow originating from the top-left of the picker — sits
+       behind the left-aligned heading and trails off across the screen.
+       Subtle but with broad reach: a soft inner spot and a much wider
+       outer halo together cover most of the upper picker without ever
+       feeling saturated. Flip to top-right by swapping `18%` → `82%`. */
+    background:
+      radial-gradient(circle 320px at 18% 20px,
+                      rgba(217, 245, 113, 0.12),
+                      transparent 82%),
+      radial-gradient(circle 780px at 18% 20px,
+                      rgba(217, 245, 113, 0.06),
+                      transparent 88%);
   }
   .picker::-webkit-scrollbar { display: none; }
   .picker-head { padding: 6px 22px 22px; }
-  .profile-btn {
-    position: absolute;
-    top: 60px; right: 22px;
-    z-index: 10;
-    width: 38px; height: 38px;
-    border-radius: 50%;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(245,243,236,0.10);
-    color: var(--ink-100);
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    padding: 0;
-    transition: background 200ms ease;
-  }
-  .profile-btn:hover {
-    background: rgba(255,255,255,0.10);
-  }
   .badge.walked-link {
     background: rgba(15,16,13,0.65);
     border: none;
@@ -260,16 +295,19 @@
     opacity: 0.55;
   }
   .picker-head .h {
-    font-weight: 700;
-    font-size: 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 400;
+    font-size: 17px;
+    line-height: 1.35;
     color: var(--ink-100);
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
   }
-  .picker-head .sub {
-    margin-top: 4px;
-    font-weight: 500;
-    font-size: 13px;
-    color: var(--ink-60);
+  .picker-head .h-icon {
+    color: var(--lime);
+    flex-shrink: 0;
+    opacity: 0.9;
   }
   .trail-list {
     display: flex; flex-direction: column;
@@ -282,35 +320,63 @@
     aspect-ratio: 16/9;
     background: #1a1a17;
     cursor: pointer;
-    transition: transform 250ms ease;
+    transition: transform 250ms ease, box-shadow 250ms ease;
+    /* Whisper-thin cream outline so the card edge reads cleanly against
+       the dark picker background. Painted outside the radius (not as a
+       `border`, which would clip 1px into the photo). */
+    box-shadow: 0 0 0 1px rgba(245, 243, 236, 0.07);
   }
   .t-card:active { transform: scale(0.985); }
+  .t-card:hover { box-shadow: 0 0 0 1px rgba(245, 243, 236, 0.13); }
   .t-card .photo { position: absolute; inset: 0; }
+  /* Middle-ground scrim: clear top for the establishing image, a
+     measured fade through the middle, near-solid at the bottom where
+     the text block lives. Pulled back from a previous more aggressive
+     version that buried the photo. */
   .t-card .scrim {
     position: absolute; inset: 0;
-    background: linear-gradient(180deg, rgba(0,0,0,0.10) 30%, rgba(0,0,0,0.55) 75%, rgba(0,0,0,0.88) 100%);
+    background: linear-gradient(180deg,
+                                rgba(0,0,0,0)    18%,
+                                rgba(0,0,0,0.32) 44%,
+                                rgba(0,0,0,0.70) 72%,
+                                rgba(0,0,0,0.92) 100%);
     pointer-events: none;
   }
   .t-card .body {
     position: absolute;
     left: 18px; right: 18px; bottom: 16px;
     color: var(--ink-100);
+    /* No text-shadow — the strong scrim above does the legibility work,
+     * and dropping the shadow keeps letterforms crisp. If a specific
+     * photo creates a worst-case bright spot under the text, the right
+     * fix is to push the scrim, not paper over with type halos. */
   }
   .t-card .region {
     font-size: 10px; font-weight: 600;
     letter-spacing: 0.16em; text-transform: uppercase;
-    color: rgba(245,243,236,0.8);
+    color: rgba(245,243,236,0.85);
   }
   .t-card .name {
     margin-top: 4px;
     font-weight: 700; font-size: 24px;
     letter-spacing: -0.02em; line-height: 1.1;
   }
+  /* One-line summary of the trail — what kind of place it is. Slightly
+     dimmed against the cream name above so it reads as a subtitle. */
+  .t-card .tagline {
+    margin-top: 7px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.35;
+    letter-spacing: -0.005em;
+    color: rgba(245, 243, 236, 0.85);
+    max-width: 320px;
+  }
   .t-card .stats {
-    margin-top: 8px;
+    margin-top: 10px;
     display: flex; align-items: center; gap: 10px;
     font-size: 13px; font-weight: 500;
-    color: rgba(245,243,236,0.88);
+    color: rgba(245,243,236,0.92);
   }
   .t-card .stats .dot {
     width: 3px; height: 3px; border-radius: 50%;
@@ -339,40 +405,8 @@
   }
   .badge.walked { background: rgba(0,0,0,0.4); color: rgba(245,243,236,0.75); }
 
-  /* download pill (no outline) */
-  .dl-btn {
-    position: absolute;
-    top: 14px; right: 14px;
-    z-index: 10;
-    background: rgba(15,16,13,0.78);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: none;
-    border-radius: 999px;
-    padding: 8px 14px 8px 12px;
-    color: var(--lime);
-    font-family: var(--sans);
-    font-size: 10.5px; font-weight: 700;
-    letter-spacing: 0.08em; text-transform: uppercase;
-    display: inline-flex; align-items: center; gap: 7px;
-    cursor: pointer;
-    overflow: hidden;
-    transition: transform 150ms ease, background 200ms ease;
-    --dl-pct: 0%;
-  }
-  .dl-btn:hover { background: rgba(15,16,13,0.92); }
-  .dl-btn:active { transform: scale(0.96); }
-  .dl-btn svg { display: block; }
-  .dl-btn .dl-fill {
-    position: absolute;
-    left: 0; top: 0; bottom: 0;
-    width: var(--dl-pct);
-    background: rgba(217,245,113,0.22);
-    transition: width 120ms linear;
-    z-index: 0;
-  }
-  .dl-btn .dl-text { position: relative; z-index: 1; }
-  .dl-btn .dl-icon { position: relative; z-index: 1; }
+  /* (the picker-card .dl-btn was removed — download now lives on the
+     detail view's CTA, see .lime-btn.cta-btn above.) */
 
   .picker-foot {
     margin: 4px 16px 0;
@@ -401,27 +435,44 @@
     flex-direction: column;
   }
   .dm-top {
-    padding: 60px 18px 8px;
+    padding: 72px 18px 14px;
     display: flex;
     align-items: center;
     gap: 12px;
     z-index: 6;
     flex-shrink: 0;
+    /* Hairline divider into the map — mirrors the one on .dm-action
+       so the layout reads as three zones: title / map / action. */
+    border-bottom: 1px solid rgba(245, 243, 236, 0.06);
   }
-  .dm-title { flex: 1; text-align: center; }
-  .dm-name {
-    font-size: 17px;
-    font-weight: 700;
-    letter-spacing: -0.015em;
-    color: var(--ink-100);
-  }
+  .dm-title { flex: 1; text-align: center; min-width: 0; }
+  /* Order in markup: dm-loc (eyebrow) → dm-name (hero) → dm-summary
+     (subtitle). Together they read as a magazine-style chapter
+     heading; sized so the trail name has real presence above the map. */
   .dm-loc {
-    margin-top: 2px;
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: var(--ink-60);
+    margin-bottom: 6px;
+  }
+  .dm-name {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+    color: var(--ink-100);
+  }
+  .dm-summary {
+    margin: 8px auto 0;
+    max-width: 300px;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.4;
+    letter-spacing: -0.005em;
+    color: rgba(245, 243, 236, 0.78);
+    text-align: center;
   }
   .dm-canvas {
     flex: 1;
@@ -1196,6 +1247,40 @@
     opacity: 0;
     transition: opacity 400ms ease;
   }
+  /* Look-for prompt — a quiet invitation to notice something on the way
+     to the next stop. Stays visible through both between and approaching
+     states; resolved by the next stop's `payoff` narration on arrival.
+     Sized to be the second-most readable element after the next stop's
+     name — meant to be glanced at, not squinted at. */
+  .wq-lookfor {
+    margin: 32px auto 0;
+    max-width: 280px;
+    font-size: 15.5px;
+    font-weight: 500;
+    line-height: 1.5;
+    letter-spacing: -0.005em;
+    color: rgba(245, 243, 236, 0.92);   /* parchment cream — readability over flair */
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 380ms ease 220ms, transform 380ms ease 220ms;
+  }
+  .wq-lookfor:empty { display: none; }
+  .walking[data-tour-state="between"] .wq-lookfor,
+  .walking[data-tour-state="approaching"] .wq-lookfor {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .wq-lookfor::before {
+    content: "ON THE WAY";
+    display: block;
+    margin: 0 auto 10px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--lime);
+    opacity: 0.75;
+  }
   /* Hide the between/approaching indicator while the mic is recording */
   .walking.is-holding .walking-quiet {
     opacity: 0;
@@ -1238,20 +1323,14 @@
     font-size: 11px; font-weight: 700;
     letter-spacing: 0.22em; text-transform: uppercase;
     color: var(--lime);
-    margin-bottom: 12px;
+    margin-bottom: 14px;
   }
-  .tc-title {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--ink-100);
-    letter-spacing: -0.022em;
-    line-height: 1.2;
-  }
+  /* .tc-title was removed — "You walked the loop." sentence is gone.
+     The check seal + eyebrow + stats + CTA carry the moment. */
   .tc-stats {
-    margin-top: 12px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
-    color: var(--ink-60);
+    color: var(--ink-100);
     letter-spacing: -0.005em;
   }
   .tc-journal {
@@ -1485,8 +1564,12 @@
     background: rgba(245,243,236,0.06);
     margin: 4px 8px;
   }
-  .ms-item--danger { color: #e8b88a; }
-  .ms-item--danger .ms-icon { color: #e8b88a; }
+  /* End-tour item: lime, matching the tour-lifecycle CTAs (Begin, Open
+     journal). Earlier iteration used an off-palette amber (#e8b88a) as a
+     softer stand-in for iOS system red — replaced to honour the
+     single-accent rule. */
+  .ms-item--end { color: var(--lime); }
+  .ms-item--end .ms-icon { color: var(--lime); }
 
   /* Paused state — surfaced near the lyric */
   .paused-banner {
@@ -1554,9 +1637,9 @@
     pointer-events: auto;
   }
   .pc-thumb {
-    width: 56px; height: 56px;
+    width: 68px; height: 68px;
     object-fit: cover;
-    border-radius: 9px;
+    border-radius: 11px;
     flex-shrink: 0;
     border: 1px solid rgba(245,243,236,0.08);
   }
@@ -1573,8 +1656,9 @@
     box-shadow: 0 0 6px rgba(217,245,113,0.7);
   }
   .pc-sub {
-    margin-top: 4px;
-    font-size: 12px;
+    margin-top: 6px;
+    font-size: 13.5px;
+    line-height: 1.35;
     color: var(--ink-80);
     font-weight: 500;
     letter-spacing: -0.005em;
@@ -1831,174 +1915,146 @@
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
-  /* "Today" eyebrow now scrolls with the content */
-  .j-eyebrow {
-    font-size: 10.5px;
+  /* Compact recap header — small lime check + trail name + meta on a
+     single row. Replaces the old map hero + big achievement card. */
+  .journal .recap-meta {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0 22px 0;
+    padding: 0 0 22px;
+    border-bottom: 1px solid rgba(245, 243, 236, 0.10);
+  }
+  .journal .rm-seal {
+    width: 38px; height: 38px;
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: rgba(217, 245, 113, 0.10);
+    border: 1px solid rgba(217, 245, 113, 0.55);
+    color: var(--lime);
+  }
+  .journal .rm-info { flex: 1; min-width: 0; }
+  .journal .rm-trail {
+    font-size: 19px;
     font-weight: 700;
-    letter-spacing: 0.20em;
-    text-transform: uppercase;
-    color: var(--ink-60);
-    margin-bottom: 10px;
-  }
-  .j-head { padding: 64px 28px 18px; }
-  .j-head .name {
-    font-weight: 700; font-size: 30px;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.018em;
     color: var(--ink-100);
-    line-height: 1.05;
+    line-height: 1.15;
   }
-  .j-head .date {
+  .journal .rm-stats {
     margin-top: 4px;
-    font-size: 13px; font-weight: 500;
-    color: var(--ink-60);
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(245, 243, 236, 0.72);
+    letter-spacing: -0.005em;
   }
-  .journal .hero {
-    width: calc(100% - 32px);
-    margin: 8px 16px 22px;
-    aspect-ratio: 16/10;
-    border-radius: 18px;
-    overflow: hidden;
+
+  /* Discovery hero — the visual moment. Huge lime count + uppercase
+     label. Reads as a stat-poster page break before the cards. */
+  .journal .disc-hero {
+    text-align: center;
+    margin: 38px 0 26px;
+  }
+  .journal .dh-num {
+    font-size: 96px;
+    font-weight: 700;
+    color: var(--lime);
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 36px rgba(217, 245, 113, 0.18);
+  }
+  .journal .dh-label {
+    margin-top: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: rgba(245, 243, 236, 0.65);
+  }
+
+  /* shared section label (kept for any other surfaces that might use it) */
+  .j-label {
+    font-size: 10.5px; font-weight: 700;
+    letter-spacing: 0.20em; text-transform: uppercase;
+    color: rgba(245, 243, 236, 0.70);
   }
   /* shared section label */
   .j-label {
     font-size: 10.5px; font-weight: 700;
     letter-spacing: 0.20em; text-transform: uppercase;
-    color: var(--ink-60);
+    color: rgba(245, 243, 236, 0.70);
   }
 
-  /* Stops you walked — sequential journal entries, one per stop */
-  .journal .stops-list {
-    margin: 4px 28px 0;
-    padding-top: 18px;
-    border-top: 1px solid var(--ink-15);
+  /* Discoveries — five equally-treated learning cards, no source
+     distinction. Each is a "museum catalog entry" with a small "01"–
+     "05" corner number for visual rhythm. The big lime count above
+     (.disc-hero) is the visual hero of the screen; cards are quieter
+     so the eye lands on the count first, then unpacks each card. */
+  .journal .discoveries {
+    margin: 0 22px;
   }
-  .journal .stop {
-    display: flex;
-    gap: 14px;
-    padding: 14px 0;
-    align-items: flex-start;
+
+  .journal .learning-card {
+    position: relative;
+    margin-bottom: 14px;
+    padding: 24px 22px 22px;
+    background:
+      linear-gradient(135deg, rgba(245,243,236,0.045), rgba(245,243,236,0.015));
+    border: 1px solid rgba(245, 243, 236, 0.12);
+    border-radius: 16px;
+    /* Soft staggered entrance — fires on first render */
+    opacity: 0;
+    transform: translateY(10px);
+    animation: lcEnter 480ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
   }
-  .journal .stop + .stop {
-    border-top: 1px solid var(--ink-15);
+  .journal .learning-card:nth-of-type(1) { animation-delay: 140ms; }
+  .journal .learning-card:nth-of-type(2) { animation-delay: 220ms; }
+  .journal .learning-card:nth-of-type(3) { animation-delay: 300ms; }
+  .journal .learning-card:nth-of-type(4) { animation-delay: 380ms; }
+  .journal .learning-card:nth-of-type(5) { animation-delay: 460ms; }
+  @keyframes lcEnter {
+    to { opacity: 1; transform: none; }
   }
-  .journal .stops-list .j-label + .stop {
-    margin-top: 4px;
-  }
-  .journal .stop-num {
-    flex: 0 0 auto;
-    width: 26px; height: 26px;
-    border-radius: 50%;
-    background: rgba(217,245,113,0.10);
-    border: 1px solid rgba(217,245,113,0.45);
-    color: var(--lime);
-    font-size: 11px;
-    font-weight: 800;
-    display: flex; align-items: center; justify-content: center;
-    margin-top: 2px;
-    letter-spacing: 0.02em;
-  }
-  .journal .stop-body { flex: 1; min-width: 0; }
-  /* stop name = small eyebrow; the LEARNING is the primary text */
-  .journal .stop-name {
-    font-size: 10px;
+  /* Catalog-entry corner number ("01"–"05") — dim lime, tabular-num,
+     top-right of each card. Subtle visual rhythm down the list. */
+  .journal .lc-num {
+    position: absolute;
+    top: 14px; right: 18px;
+    font-size: 10.5px;
     font-weight: 700;
-    letter-spacing: 0.20em;
-    text-transform: uppercase;
-    color: var(--ink-60);
-    margin-bottom: 8px;
+    letter-spacing: 0.18em;
+    color: rgba(217, 245, 113, 0.55);
+    font-variant-numeric: tabular-nums;
   }
-  .journal .stop-fact {
-    font-size: 15px;
+  /* The "anchor" — a date, age, weight, name, or quantity that makes
+     the fact memorable. Big, bold, cream. Bumped to 34px so each card
+     opens with a strong typographic moment. */
+  .journal .learning-anchor {
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: -0.026em;
+    color: var(--ink-100);
+    line-height: 1.04;
+    margin-bottom: 12px;
+    padding-right: 36px;     /* leave room for the corner number */
+  }
+  /* The context paragraph — short prose that gives the anchor its
+     meaning. Cream at 0.95 alpha for guaranteed contrast. */
+  .journal .learning-text {
+    font-size: 14.5px;
     font-weight: 500;
-    line-height: 1.5;
-    color: var(--ink-100);
-    letter-spacing: -0.01em;
-  }
-  .journal .stop-qa {
-    margin-top: 12px;
-    padding: 12px 14px;
-    border-left: 2px solid var(--lime);
-    background: rgba(217,245,113,0.04);
-    border-radius: 0 10px 10px 0;
-  }
-  .journal .stop-qa-q {
-    font-size: 13px;
-    font-weight: 600;
-    font-style: italic;
-    color: var(--ink-100);
-    line-height: 1.4;
+    line-height: 1.55;
+    color: rgba(245, 243, 236, 0.95);
     letter-spacing: -0.005em;
   }
-  .journal .stop-qa-a {
-    margin-top: 6px;
-    font-size: 12.5px;
-    line-height: 1.55;
-    color: var(--ink-80);
-  }
 
-  /* What you saw */
-  .journal .saw {
-    margin: 22px 28px 0;
-    padding-top: 18px;
-    border-top: 1px solid var(--ink-15);
-  }
-  .journal .saw .explain {
-    margin-top: 8px;
-    font-size: 12.5px;
-    color: var(--ink-60);
-    line-height: 1.5;
-    max-width: 36ch;
-  }
-  .journal .saw ul { list-style: none; margin-top: 12px; padding: 0; }
-  .journal .saw li {
-    font-size: 14px;
-    color: var(--ink-100);
-    padding: 6px 0;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .journal .saw li::before {
-    content: "";
-    width: 4px; height: 4px; border-radius: 50%;
-    background: var(--ink-40);
-  }
 
-  /* Share */
-  .journal .send { margin: 16px 0 8px; }
-  .journal .send button {
-    width: 100%;
-    padding: 14px 18px;
-    background: transparent;
-    color: var(--ink-100);
-    border: 1px solid var(--ink-25);
-    border-radius: 999px;
-    font-family: var(--sans);
-    font-weight: 600; font-size: 14px;
-    cursor: pointer;
-    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-    transition: background 200ms ease, border-color 200ms ease;
-  }
-  .journal .send button:hover {
-    background: rgba(217,245,113,0.06);
-    border-color: rgba(217,245,113,0.5);
-  }
-  .journal .send .share-dot {
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--lime);
-    box-shadow: 0 0 8px rgba(217,245,113,0.6);
-  }
-  .journal .send button.is-shared {
-    border-color: rgba(217,245,113,0.5);
-    background: rgba(217,245,113,0.06);
-    color: var(--lime);
-  }
-  .journal .send-status {
-    margin-top: 8px;
-    text-align: center;
-    font-size: 10.5px; font-weight: 600;
-    letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--ink-40);
-  }
+  /* (The old map hero + .j-complete achievement card were removed. The
+     recap now opens with a compact .recap-meta header and focuses the
+     screen on the 5 discovery cards below. See blocks above for the
+     new styling.) */
 </style>
 </head>
 <body>
@@ -2025,39 +2081,32 @@
     <!-- ========== PICKER ========== -->
     <div class="view is-active" data-view="picker">
       <div class="picker">
-        <button class="profile-btn" id="profile-btn" aria-label="Profile">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-            <circle cx="9" cy="6.5" r="3" stroke="currentColor" stroke-width="1.4"/>
-            <path d="M3 15.5c0-2.8 2.7-5 6-5s6 2.2 6 5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
-        </button>
         <div class="picker-head">
-          <div class="h">Start exploration</div>
-          <div class="sub">Trails nearby</div>
+          <div class="h">
+            <!-- Location pin: literal visual answer to "Where…?". Lime,
+                 so it ties the heading into the lime glow behind it. -->
+            <svg class="h-icon" width="14" height="16" viewBox="0 0 14 16" fill="none" aria-hidden="true">
+              <path d="M7 1.5C4.24 1.5 2 3.74 2 6.5C2 10.5 7 14.5 7 14.5C7 14.5 12 10.5 12 6.5C12 3.74 9.76 1.5 7 1.5Z"
+                    stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              <circle cx="7" cy="6.5" r="1.8" fill="currentColor"/>
+            </svg>
+            <span>Where should Trailogy take you?</span>
+          </div>
         </div>
         <div class="trail-list">
 
-          <!-- KILDOO — initially needs download -->
+          <!-- Picker cards carry no download chrome — they're pure choice.
+               Download is committed to from the detail view's CTA, which
+               becomes "Begin" once the trail's offline pack is on device. -->
           <div class="t-card" data-trail="kildoo">
             <div class="photo">
               <img src="https://upload.wikimedia.org/wikipedia/commons/c/cc/Woodlands_around_McConnell%27s_Mill_State_Park.jpg" alt="Woodlands at McConnells Mill State Park">
             </div>
             <div class="scrim"></div>
-            <div id="kildoo-status">
-              <button class="dl-btn" id="dl-kildoo" data-state="idle">
-                <span class="dl-fill"></span>
-                <span class="dl-icon">
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M5 1V7M5 7L2.5 4.5M5 7L7.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M1.5 9H8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                  </svg>
-                </span>
-                <span class="dl-text">Download · 68 MB</span>
-              </button>
-            </div>
             <div class="body">
               <div class="region">McConnells Mill</div>
               <div class="name">Kildoo Trail</div>
+              <div class="tagline">A loop through hemlocks older than the country.</div>
               <div class="stats">
                 <span>2.0 mi</span><span class="dot"></span>
                 <span>Moderate</span><span class="dot"></span>
@@ -2072,7 +2121,7 @@
               <img src="https://upload.wikimedia.org/wikipedia/commons/b/b6/Jennings_Environmental_Education_Center.jpg" alt="Jennings Environmental Education Center">
             </div>
             <div class="scrim"></div>
-            <button class="badge walked walked-link" data-journal-link aria-label="Open journal">
+            <button class="badge walked walked-link" data-journal-link aria-label="Open recap">
               Completed Apr 14
               <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
                 <path d="M2 1L6 4.5L2 8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -2081,6 +2130,7 @@
             <div class="body">
               <div class="region">Wildflower Reserve</div>
               <div class="name">Old Field &amp; Jennings</div>
+              <div class="tagline">A wildflower loop through reclaimed farms.</div>
               <div class="stats">
                 <span>2.4 mi</span><span class="dot"></span>
                 <span>Easy</span><span class="dot"></span>
@@ -2089,27 +2139,15 @@
             </div>
           </div>
 
-          <!-- TRANQUIL — available, with download button -->
           <div class="t-card" data-trail="tranquil">
             <div class="photo">
               <img src="https://upload.wikimedia.org/wikipedia/commons/6/60/Pittsburgh_frick_park_trail.jpg" alt="Frick Park trail">
             </div>
             <div class="scrim"></div>
-            <div id="tranquil-status">
-              <button class="dl-btn" id="dl-tranquil" data-state="idle">
-                <span class="dl-fill"></span>
-                <span class="dl-icon">
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M5 1V7M5 7L2.5 4.5M5 7L7.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M1.5 9H8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-                  </svg>
-                </span>
-                <span class="dl-text">Download · 42 MB</span>
-              </button>
-            </div>
             <div class="body">
               <div class="region">Frick Park</div>
               <div class="name">Tranquil Trail</div>
+              <div class="tagline">A wooded creek walk in the heart of Pittsburgh.</div>
               <div class="stats">
                 <span>1.1 mi</span><span class="dot"></span>
                 <span>Easy</span><span class="dot"></span>
@@ -2134,8 +2172,15 @@
             </svg>
           </button>
           <div class="dm-title">
-            <div class="dm-name">Kildoo Trail</div>
+            <!-- Magazine-style stack: location eyebrow first, trail name as
+                 the hero, summary sentence below. Same `dm-summary` element
+                 that used to live in the bottom action card — moved here so
+                 the qualitative info ("where + what + what kind of") is
+                 together at the top, and the bottom card stays focused on
+                 stats + CTA. -->
             <div class="dm-loc">McConnells Mill State Park</div>
+            <div class="dm-name">Kildoo Trail</div>
+            <div class="dm-summary" id="dm-summary">A loop through hemlocks older than the country.</div>
           </div>
           <div style="width:32px;"></div>
         </div>
@@ -2266,7 +2311,9 @@
 
         </div>
 
-        <!-- bottom action card -->
+        <!-- bottom action card: stats + CTA only. The summary line moved
+             up into the dm-title block above; the action card is now
+             purely "the numbers + the commit." -->
         <div class="dm-action">
           <div class="dm-stats">
             <span><b>2.0</b> mi</span><span class="d-dot"></span>
@@ -2274,7 +2321,26 @@
             <span><b>5</b> stops</span><span class="d-dot"></span>
             <span>Moderate</span>
           </div>
-          <button class="lime-btn" id="begin">Begin</button>
+          <!-- State-aware CTA: same lime button, three states.
+                 data-state="download"    → "Download · 68 MB" + arrow icon
+                 data-state="downloading" → animated progress fill + "47%"
+                 data-state="ready"       → "Begin" + play icon
+               Set on every detail-view enter by updateBeginCta(). -->
+          <button class="lime-btn cta-btn" id="begin" data-state="ready">
+            <span class="cta-fill" aria-hidden="true"></span>
+            <span class="cta-row">
+              <span class="cta-icon" aria-hidden="true">
+                <svg class="i-download" width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M7 2V9M7 9L4.5 6.5M7 9L9.5 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M3 11.5H11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+                </svg>
+                <svg class="i-play" width="12" height="14" viewBox="0 0 12 14" fill="none">
+                  <path d="M2 2L10 7L2 12V2Z" fill="currentColor" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <span class="cta-text" id="cta-text">Begin</span>
+            </span>
+          </button>
         </div>
       </div>
     </div>
@@ -2313,6 +2379,9 @@
           <div class="wq-eyebrow" id="wq-eyebrow">Walking to</div>
           <div class="wq-name" id="wq-name">Layered Cliffs</div>
           <div class="wq-distance" id="wq-distance">0.4 mi · about 12 minutes</div>
+          <!-- Look-for prompt: invites the user to notice something on the way
+               to the next stop. Resolved by the next stop's `payoff` line. -->
+          <div class="wq-lookfor" id="wq-lookfor" aria-live="polite"></div>
         </div>
 
         <!-- COMPLETE — shown after the last stop -->
@@ -2323,9 +2392,8 @@
             </svg>
           </div>
           <div class="tc-eyebrow">Tour complete</div>
-          <div class="tc-title">You walked the loop.</div>
           <div class="tc-stats">2.0 mi · 5 stops · 1 hr 12 min</div>
-          <button class="tc-journal" id="tc-journal">Open journal</button>
+          <button class="tc-journal" id="tc-journal">View recap</button>
         </div>
 
         <div class="lyric" id="lyric">
@@ -2400,7 +2468,7 @@
             <span class="ms-label" id="pause-label">Pause tour</span>
           </button>
           <div class="ms-divider"></div>
-          <button class="ms-item ms-item--danger" id="end-item">
+          <button class="ms-item ms-item--end" id="end-item">
             <span class="ms-icon">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                 <rect x="3" y="3" width="8" height="8" rx="1" fill="currentColor"/>
@@ -2492,80 +2560,71 @@
             <path d="M3 3L11 11M11 3L3 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
         </button>
-        <div class="j-head">
-          <div class="j-eyebrow">Today</div>
-          <div class="name">Kildoo Trail</div>
-          <div class="date">May 3, 2026 · 2.0 mi · 1 hr 12 min</div>
-        </div>
-        <div class="hero">
-          <div class="photo">
-            <img src="https://upload.wikimedia.org/wikipedia/commons/7/77/McConnells_Mill_State_Park_Bridge.jpg" alt="McConnells Mill covered bridge">
+        <!-- Compact recap header: small lime check + trail name + meta
+             line, all on a single row. Replaces the previous map hero +
+             big achievement card, freeing the screen to focus on what
+             the user actually noticed. -->
+        <div class="recap-meta">
+          <div class="rm-seal" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M3 7.2L5.6 9.8L11 4.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="rm-info">
+            <div class="rm-trail">Kildoo Trail</div>
+            <div class="rm-stats">May 3 · 2.0 mi · 1 hr 12 min · 5 stops</div>
           </div>
         </div>
 
-        <div class="stops-list">
-          <div class="j-label">Stops you walked</div>
-
-          <div class="stop">
-            <div class="stop-num">1</div>
-            <div class="stop-body">
-              <div class="stop-name">Covered Bridge &amp; Mill</div>
-              <div class="stop-fact">Built in 1874 — one of two Howe-truss bridges left in Pennsylvania. The mill ground grain here until 1928.</div>
-            </div>
-          </div>
-
-          <div class="stop">
-            <div class="stop-num">2</div>
-            <div class="stop-body">
-              <div class="stop-name">Layered Cliffs</div>
-              <div class="stop-fact">Sandstone laid down 320 million years ago, the orange streaks are iron oxide leached from the rock by groundwater.</div>
-              <div class="stop-qa">
-                <div class="stop-qa-q">"What are the orange streaks on the cliff face?"</div>
-                <div class="stop-qa-a">Iron oxide — leached out of the sandstone by groundwater over a very long time.</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="stop">
-            <div class="stop-num">3</div>
-            <div class="stop-body">
-              <div class="stop-name">Kildoo Falls</div>
-              <div class="stop-fact">The eastern hemlocks above the gorge are roughly three centuries old — older than the country.</div>
-            </div>
-          </div>
-
-          <div class="stop">
-            <div class="stop-num">4</div>
-            <div class="stop-body">
-              <div class="stop-name">Eckert Bridge</div>
-              <div class="stop-fact">South crossing back to the western bank. The creek narrows here — you stayed for ten minutes.</div>
-            </div>
-          </div>
-
-          <div class="stop">
-            <div class="stop-num">5</div>
-            <div class="stop-body">
-              <div class="stop-name">The Slippery Rock</div>
-              <div class="stop-fact">The 80-ton sandstone boulder in the creek that gave the waterway its name.</div>
-            </div>
-          </div>
+        <!-- Discovery hero: the visual moment of the recap. A big lime
+             count says "this many things noticed today." Stops the
+             scrolling eye, sets the page tone before the cards begin. -->
+        <div class="disc-hero">
+          <div class="dh-num">5</div>
+          <div class="dh-label">Discoveries today</div>
         </div>
 
-        <div class="saw">
-          <div class="j-label">What you saw</div>
-          <div class="explain">Sightings sync to iNaturalist next time you have signal — they help researchers track what lives where.</div>
-          <ul>
-            <li>Eastern hemlock</li>
-            <li>Great rhododendron, budding</li>
-            <li>Wood thrush — heard, not seen</li>
-          </ul>
-          <div class="send">
-            <button id="share-btn">
-              <span class="share-dot"></span>
-              Share when connected
-            </button>
-            <div class="send-status">3 sightings queued · waiting for signal</div>
-          </div>
+        <!-- What you learned: the editorial takeaways from the walk. Each
+             card is anchored by a hero number / date / quantity that makes
+             the fact memorable. Curator-authored, static per trail —
+             selective, not exhaustive: not every stop produces a learning,
+             and one stop can produce more than one. -->
+        <!-- Discoveries: a single stream of takeaways from the walk.
+             No source distinction (curator-authored learnings and
+             user-question answers blend together — all just things
+             noticed). Each card is a "museum catalog entry" with a
+             small "01"–"05" corner number for visual rhythm. -->
+        <div class="discoveries">
+
+          <article class="learning-card">
+            <span class="lc-num">01</span>
+            <div class="learning-anchor">320 million years</div>
+            <div class="learning-text">Age of the sandstone in the layered cliffs. The orange streaks are iron oxide leached out of the rock by groundwater over geologic time.</div>
+          </article>
+
+          <article class="learning-card">
+            <span class="lc-num">02</span>
+            <div class="learning-anchor">Iron oxide</div>
+            <div class="learning-text">What turns the cliff face orange — leached out of the sandstone by groundwater, stain by stain, over a very long time.</div>
+          </article>
+
+          <article class="learning-card">
+            <span class="lc-num">03</span>
+            <div class="learning-anchor">Three centuries</div>
+            <div class="learning-text">Age of the eastern hemlocks leaning over the gorge above Kildoo Falls — older than the country itself.</div>
+          </article>
+
+          <article class="learning-card">
+            <span class="lc-num">04</span>
+            <div class="learning-anchor">1874</div>
+            <div class="learning-text">The Covered Bridge was built this year — Howe truss design, one of two left in Pennsylvania. The mill ground grain here until 1928.</div>
+          </article>
+
+          <article class="learning-card">
+            <span class="lc-num">05</span>
+            <div class="learning-anchor">80 tons</div>
+            <div class="learning-text">Weight of Slippery Rock — the sandstone boulder in the creek that gave the waterway its name. Algae keeps it slick.</div>
+          </article>
         </div>
 
       </div>
@@ -2575,12 +2634,29 @@
     <div class="ios-alert" id="loc-alert" aria-hidden="true">
       <div class="ios-alert-card" role="dialog" aria-labelledby="loc-alert-title">
         <div class="ios-alert-content">
-          <div class="ios-alert-title" id="loc-alert-title">You're not at this trail</div>
-          <div class="ios-alert-msg" id="loc-alert-msg">The tour normally activates as you walk by each stop. It'll play in time sequence instead.</div>
+          <div class="ios-alert-title" id="loc-alert-title">Tours are location-based</div>
+          <div class="ios-alert-msg" id="loc-alert-msg">On the trail, stops play when you arrive.<br>This demo will auto-advance.</div>
         </div>
         <div class="ios-alert-actions">
           <button class="ios-alert-btn cancel" id="loc-alert-cancel">Cancel</button>
-          <button class="ios-alert-btn primary" id="loc-alert-start">Begin</button>
+          <button class="ios-alert-btn primary" id="loc-alert-start">Begin Tour</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pre-camera tip: shown the first time the user taps the camera
+         button in a session, so they know the model is tuned for plants.
+         iOS implementation: same sheet, gated by a UserDefaults flag,
+         then launches the system UIImagePickerController on dismiss —
+         no custom AVFoundation camera needed. -->
+    <div class="ios-alert" id="cam-tip-alert" aria-hidden="true">
+      <div class="ios-alert-card" role="dialog" aria-labelledby="cam-tip-title">
+        <div class="ios-alert-content">
+          <div class="ios-alert-title" id="cam-tip-title">I'm best at plants right now</div>
+          <div class="ios-alert-msg" id="cam-tip-msg">Try a leaf, flower, or fern.<br>I'll tell you what I see.</div>
+        </div>
+        <div class="ios-alert-actions ios-alert-actions--single">
+          <button class="ios-alert-btn primary" id="cam-tip-ok">Open camera</button>
         </div>
       </div>
     </div>
@@ -2588,7 +2664,7 @@
   </div>
 </div>
 
-<div class="hint" id="hint">Tap <kbd>Download</kbd> on Kildoo, then tap a trail.</div>
+<div class="hint" id="hint">Tap a trail to see it. <kbd>Download</kbd> appears on the map view.</div>
 
 <button class="reset" id="reset">Reset prototype</button>
 
@@ -2599,8 +2675,8 @@
   let current = 'picker';
 
   const hints = {
-    picker:  'Tap <kbd>Download</kbd> on Kildoo, then tap a trail.',
-    detail:  'Tap <kbd>Begin</kbd> to start, or the back arrow to return.',
+    picker:  'Tap a trail to see it. <kbd>Download</kbd> appears on the map view.',
+    detail:  'Tap <kbd>Download</kbd> to save offline. It becomes <kbd>Begin</kbd> when ready.',
     walking: 'The app talks at each stop. Tap the <kbd>mic</kbd> to ask · <kbd>camera</kbd> for context · <kbd>•••</kbd> to pause or end.',
     journal: 'Tap × to return to trails.',
   };
@@ -2627,9 +2703,12 @@
       // 2.0 mi loop, ~180 ft elevation, Moderate, ~1 hr (DCNR / AllTrails)
       name: 'Kildoo Trail',
       location: 'McConnells Mill State Park',
+      summary: 'A loop through hemlocks older than the country.',
       distance: '2.0', distanceUnit: 'mi',
       timeNum: '1', timeUnit: 'hr',
       difficulty: 'Moderate',
+      downloadSize: '68 MB',
+      downloaded: false,
       stops: [
         { num: 1, name: 'Covered Bridge & Mill', lat: 40.9528830, lng: -80.1700386,
           img: 'https://upload.wikimedia.org/wikipedia/commons/7/77/McConnells_Mill_State_Park_Bridge.jpg',
@@ -2637,14 +2716,17 @@
             "The covered bridge dates to 1874.",
             "Howe truss design — one of two left in Pennsylvania.",
             "The mill ground grain here until 1928.",
-          ]},
+          ],
+          lookFor: "Look for the mill race — a stone-lined channel along the creek that fed the wheel." },
         { num: 2, name: 'Layered Cliffs', lat: 40.9498610, lng: -80.1715602,
           img: 'https://upload.wikimedia.org/wikipedia/commons/c/cc/Woodlands_around_McConnell%27s_Mill_State_Park.jpg',
           sentences: [
             "Sandstone laid down 320 million years ago.",
             "The orange streaks are iron oxide.",
             "Groundwater carries it out of the rock.",
-          ]},
+          ],
+          payoff: "If you saw a long stone-lined trench along the creek, that was the old mill race.",
+          lookFor: "Listen for the falls. You'll hear them before you see them." },
         { num: 3, name: 'Kildoo Falls', lat: 40.9465772, lng: -80.1733358,
           img: 'https://upload.wikimedia.org/wikipedia/commons/2/22/Hell%27s_Hollow_Falls.JPG',
           sentences: [
@@ -2652,21 +2734,26 @@
             "Listen. The creek does most of the work.",
             "Above you, hemlocks lean over the gorge.",
             "Some of them are three centuries old.",
-          ]},
+          ],
+          payoff: "You probably heard the falls a quarter-mile back — water travels far in a gorge.",
+          lookFor: "Watch the hemlocks for buck rubs — bark scraped smooth at chest height." },
         { num: 4, name: 'Slippery Rock', lat: 40.9429821, lng: -80.1750093,
           img: 'https://upload.wikimedia.org/wikipedia/commons/2/26/McConnells_Mill_State_Park_Scenery_01.jpg',
           sentences: [
             "An eighty-ton sandstone boulder in the creek.",
             "It gave the waterway its name.",
             "Algae makes it slick — hence slippery.",
-          ]},
+          ],
+          payoff: "Those bark scrapes are bucks marking territory in fall.",
+          lookFor: "Find a fern rooted in bare stone, no soil." },
         { num: 5, name: 'Eckert Bridge', lat: 40.9403631, lng: -80.1760979,
           img: 'https://upload.wikimedia.org/wikipedia/commons/3/34/McConnells_Mill_Bridge_and_Creek.jpg',
           sentences: [
             "Eckert Bridge crosses Slippery Rock Creek here.",
             "From here the trail returns north along the western bank.",
             "The creek narrows and quickens through the gorge.",
-          ]},
+          ],
+          payoff: "That's polypody fern — it roots in moss on bare rock and curls up to survive drought." },
       ],
       // Path traced from a single OSM way: "Kildoo Trail" (east bank).
       // Treated as an out-and-back trace; the actual trail is a 2 mi loop, but
@@ -2717,9 +2804,13 @@
       // and closed back to the trailhead in the southwest.
       name: 'Old Field & Jennings Trail Loop',
       location: 'Wildflower Reserve',
+      summary: 'A wildflower loop through reclaimed farms.',
       distance: '2.3', distanceUnit: 'mi',
       timeNum: '50', timeUnit: 'min',
       difficulty: 'Easy',
+      downloadSize: '54 MB',
+      downloaded: true,    // already walked once — demo state for the picker
+                           // "Completed Apr 14" badge still applies separately.
       stops: [
         { num: 1, name: 'Trailhead', lat: 40.5085885, lng: -80.3645201,
           img: 'https://upload.wikimedia.org/wikipedia/commons/b/b6/Jennings_Environmental_Education_Center.jpg',
@@ -2727,35 +2818,43 @@
             "You're at the southwest entrance to the Wildflower Reserve loop.",
             "These woods hold one of the richest spring wildflower displays in Pennsylvania.",
             "Trilliums, Virginia bluebells, and Dutchman's breeches all bloom here.",
-          ]},
+          ],
+          lookFor: "Look for trillium on the forest floor — three white petals on a single stem." },
         { num: 2, name: 'Wildflower Meadow', lat: 40.5091497, lng: -80.3612003,
           img: 'https://upload.wikimedia.org/wikipedia/commons/6/60/Pittsburgh_frick_park_trail.jpg',
           sentences: [
             "A sunlit clearing along the Old Field Trail.",
             "In late April, the forest floor here turns white with large-flowered trillium.",
             "Wood thrushes and ovenbirds sing from the surrounding canopy.",
-          ]},
+          ],
+          payoff: "If you spotted three white petals close to the ground, you found trillium — it takes seven years to bloom from seed.",
+          lookFor: "Look for old fence posts in the woods. These slopes used to be farmland." },
         { num: 3, name: 'East Overlook', lat: 40.5086195, lng: -80.3552001,
           img: 'https://upload.wikimedia.org/wikipedia/commons/b/b6/Jennings_Environmental_Education_Center.jpg',
           sentences: [
             "The eastern turn of the loop, where Old Field meets Jennings Trail.",
             "The slope below drops down toward Raccoon Creek.",
             "On still mornings, mist rises through the trees in the valley.",
-          ]},
+          ],
+          payoff: "Those weathered posts marked the edge of an 1800s farm — the forest reclaimed it.",
+          lookFor: "On the way down, count the fallen trees left across the slope." },
         { num: 4, name: 'Forest Glen', lat: 40.5009533, lng: -80.3614658,
           img: 'https://upload.wikimedia.org/wikipedia/commons/c/cc/Woodlands_around_McConnell%27s_Mill_State_Park.jpg',
           sentences: [
             "Deep into the Jennings Trail, the canopy thickens overhead.",
             "Look for jack-in-the-pulpit and wild ginger close to the path.",
             "Pileated woodpeckers work the dead snags here year-round.",
-          ]},
+          ],
+          payoff: "Fallen trees here are left in place — they're nurseries for moss, fungi, and new saplings.",
+          lookFor: "Listen for woodpeckers drumming on the dead snags." },
         { num: 5, name: 'Loop Close', lat: 40.5068290, lng: -80.3636062,
           img: 'https://upload.wikimedia.org/wikipedia/commons/c/cc/Woodlands_around_McConnell%27s_Mill_State_Park.jpg',
           sentences: [
             "The last stretch back toward the trailhead.",
             "The understory opens up — sugar maple, beech, and red oak.",
             "A few quiet minutes and the loop is closed.",
-          ]},
+          ],
+          payoff: "That tapping was likely a pileated woodpecker — the largest in eastern forests." },
       ],
       // Path: 180 vertices. Old Field Trail [Red] (W->E, 57 nodes) +
       // Jennings spur (4 nodes, skipping shared endpoint) + Jennings Trail
@@ -2835,9 +2934,12 @@
       // 1.1 mi out-and-back (~0.55 mi one way), Easy, ~30 min (AllTrails)
       name: 'Tranquil Trail',
       location: 'Frick Park',
+      summary: 'A wooded creek walk in the heart of Pittsburgh.',
       distance: '1.1', distanceUnit: 'mi',
       timeNum: '30', timeUnit: 'min',
       difficulty: 'Easy',
+      downloadSize: '42 MB',
+      downloaded: false,
       stops: [
         { num: 1, name: 'Trailhead', lat: 40.4460114, lng: -79.9030646,
           img: 'https://upload.wikimedia.org/wikipedia/commons/6/60/Pittsburgh_frick_park_trail.jpg',
@@ -2845,21 +2947,25 @@
             "The trail begins off Beechwood Boulevard.",
             "Frick Park is Pittsburgh's largest historic park.",
             "The forest here regrew over a century after logging.",
-          ]},
+          ],
+          lookFor: "Look for skunk cabbage in the wet spots — broad green hoods close to the ground." },
         { num: 2, name: 'Fern Hollow Creek', lat: 40.4391538, lng: -79.9001871,
           img: 'https://upload.wikimedia.org/wikipedia/commons/6/60/Pittsburgh_frick_park_trail.jpg',
           sentences: [
             "Fern Hollow Creek runs alongside the trail.",
             "It empties into Nine Mile Run downstream.",
             "The valley was carved during the last glacial period.",
-          ]},
+          ],
+          payoff: "Skunk cabbage is the first plant to bloom each year — it can melt its own snow with metabolic heat.",
+          lookFor: "Look for old streetcar bricks along the creek bank." },
         { num: 3, name: 'Forest Grove', lat: 40.4296463, lng: -79.9008283,
           img: 'https://upload.wikimedia.org/wikipedia/commons/c/cc/Woodlands_around_McConnell%27s_Mill_State_Park.jpg',
           sentences: [
             "Mature oaks and tulip poplars stand here.",
             "Some of these trees are over 150 years old.",
             "The understory is mostly spicebush and witch hazel.",
-          ]},
+          ],
+          payoff: "Those red bricks are from Pittsburgh's old streetcar lines — many washed downstream over the decades." },
       ],
       // Path traced from OSM way "Tranquil Trail" in Frick Park.
       path: [
@@ -2889,17 +2995,22 @@
 
   function applyTrailToDetail() {
     const t = TRAILS[selectedTrail];
-    const nameEl = document.querySelector('.dm-name');
-    const locEl  = document.querySelector('.dm-loc');
-    const stats  = document.querySelector('.dm-stats');
-    if (nameEl) nameEl.textContent = t.name;
-    if (locEl)  locEl.textContent  = t.location;
+    const nameEl    = document.querySelector('.dm-name');
+    const locEl     = document.querySelector('.dm-loc');
+    const summaryEl = document.getElementById('dm-summary');
+    const stats     = document.querySelector('.dm-stats');
+    if (nameEl)    nameEl.textContent    = t.name;
+    if (locEl)     locEl.textContent     = t.location;
+    if (summaryEl) summaryEl.textContent = t.summary || '';
     if (stats) stats.innerHTML = `
       <span><b>${t.distance}</b> ${t.distanceUnit}</span><span class="d-dot"></span>
       <span><b>${t.timeNum}</b> ${t.timeUnit}</span><span class="d-dot"></span>
       <span><b>${t.stops.length}</b> stops</span><span class="d-dot"></span>
       <span>${t.difficulty}</span>
     `;
+    // Re-evaluate the CTA in case this trail's downloaded state changed
+    // (or the user selected a different trail).
+    if (typeof updateBeginCta === 'function') updateBeginCta();
   }
 
   function selectTrail(id) {
@@ -3022,10 +3133,13 @@
     tourLeaflet.fitBounds(L.latLngBounds(t.path), { padding: [40, 40] });
   }
 
+  // (The journal route map was removed — the recap now focuses on the
+  // discovery cards. initJournalMap / rebuildJournalMap are gone.)
+
+
   // ---------- picker → detail (with badge journal-link override) ----------
   document.querySelectorAll('.t-card').forEach(card => {
     card.addEventListener('click', e => {
-      if (e.target.closest('.dl-btn')) return;
       if (e.target.closest('[data-journal-link]')) {
         e.stopPropagation();
         go('journal');
@@ -3037,69 +3151,68 @@
     });
   });
 
-  // Profile button (placeholder action — could open settings/account)
-  const profileBtn = document.getElementById('profile-btn');
-  if (profileBtn) profileBtn.addEventListener('click', () => {
-    profileBtn.animate(
-      [{transform:'scale(1)'},{transform:'scale(0.92)'},{transform:'scale(1)'}],
-      { duration: 240, easing: 'ease-out' }
-    );
-  });
+  // ---------- detail-view CTA: download → Begin ----------
+  // The same lime button cycles through three states based on the
+  // selected trail's `downloaded` flag and an in-flight download timer.
+  const beginBtn  = document.getElementById('begin');
+  const ctaTextEl = document.getElementById('cta-text');
 
-  // ---------- download flow (shared by Kildoo & Tranquil) ----------
-  function attachDownload(btnId) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      if (btn.dataset.state !== 'idle') return;
-      runDownload(btn);
-    });
+  function updateBeginCta() {
+    const t = TRAILS[selectedTrail];
+    if (!t || !beginBtn || !ctaTextEl) return;
+    if (t.downloaded) {
+      beginBtn.dataset.state = 'ready';
+      ctaTextEl.textContent = 'Begin';
+      beginBtn.style.removeProperty('--cta-pct');
+    } else {
+      beginBtn.dataset.state = 'download';
+      ctaTextEl.textContent = `Download · ${t.downloadSize}`;
+      beginBtn.style.setProperty('--cta-pct', '0%');
+    }
   }
-  attachDownload('dl-kildoo');
-  attachDownload('dl-tranquil');
 
-  function runDownload(btn) {
-    btn.dataset.state = 'downloading';
-    const text = btn.querySelector('.dl-text');
-    const icon = btn.querySelector('.dl-icon');
-    icon.style.display = 'none';
+  function runCtaDownload() {
+    const t = TRAILS[selectedTrail];
+    if (!t || !beginBtn || !ctaTextEl) return;
+    beginBtn.dataset.state = 'downloading';
     let pct = 0;
-    text.textContent = '0%';
+    ctaTextEl.textContent = '0%';
     const tick = setInterval(() => {
       pct = Math.min(100, pct + 6 + Math.random() * 7);
-      btn.style.setProperty('--dl-pct', pct + '%');
-      text.textContent = Math.round(pct) + '%';
+      beginBtn.style.setProperty('--cta-pct', pct + '%');
+      ctaTextEl.textContent = Math.round(pct) + '%';
       if (pct >= 100) {
         clearInterval(tick);
-        setTimeout(() => completeDownload(btn), 250);
+        setTimeout(() => {
+          t.downloaded = true;
+          updateBeginCta();   // → "Begin" state
+        }, 260);
       }
     }, 110);
   }
 
-  function completeDownload(btn) {
-    const wrap = btn.parentElement;
-    wrap.innerHTML = '<div class="badge ready"><span class="dot"></span>Downloaded</div>';
-  }
-
-  // ---------- detail → picker | begin ----------
-  document.getElementById('back-to-picker').addEventListener('click', e => {
-    e.stopPropagation();
-    go('picker');
-  });
-  // Tapping Begin pops the iOS-style location alert directly. Inlined for
-  // robustness — doesn't depend on any other helper being initialized first.
-  // (Native iOS: gate on CLLocationManager + real distance check. This HTML
-  // mockup is for desktop preview, so we always surface the alert.)
-  document.getElementById('begin').addEventListener('click', () => {
+  function openLocationAlert() {
     const a = document.getElementById('loc-alert');
     const t = document.getElementById('loc-alert-title');
     const m = document.getElementById('loc-alert-msg');
     if (!a || !t || !m) { console.error('loc-alert nodes missing'); return; }
-    t.textContent = "Not on the trail yet?";
-    m.innerHTML = "Location usually guides the tour.<br>Here, it'll play in order.";
+    t.textContent = "Tours are location-based";
+    m.innerHTML = "On the trail, stops play when you arrive.<br>This demo will auto-advance.";
     a.classList.add('is-shown');
     a.setAttribute('aria-hidden', 'false');
+  }
+
+  // ---------- detail → picker | CTA ----------
+  document.getElementById('back-to-picker').addEventListener('click', e => {
+    e.stopPropagation();
+    go('picker');
+  });
+  // Single click handler dispatches by the CTA's data-state.
+  beginBtn.addEventListener('click', () => {
+    const state = beginBtn.dataset.state;
+    if (state === 'download')      runCtaDownload();
+    else if (state === 'ready')    openLocationAlert();
+    // 'downloading' → no-op until completion
   });
 
   // ---------- journal → picker ----------
@@ -3238,14 +3351,33 @@
     if (eyebrow) {
       eyebrow.innerHTML = `<span class="sh-arrived">Arrived</span> · <span>Stop <span class="sh-num">${stop.num}</span> of ${stopData.length}</span>`;
     }
-    // swap narration sentences for this stop
-    trailSentences = stop.sentences.slice();
+    // Swap narration sentences for this stop. If this stop has a `payoff`
+    // (a callback to the previous stop's `lookFor` prompt), it gets prepended
+    // so it's the first sentence the user hears on arrival — the resolution
+    // to whatever they were watching for on the walk in.
+    const base = stop.sentences.slice();
+    trailSentences = stop.payoff ? [stop.payoff, ...base] : base;
     lyricIdx = 0;
   }
 
   function setLabel(text) {
     const el = document.getElementById('spot-label');
     if (el) el.textContent = text;
+  }
+
+  // ---------- Trail cues (haptic only, no audio) ----------
+  // The phone vibrates in the user's pocket; they pull it out to see the
+  // stop. No chime, no synthesis, no audio assets. iOS Safari ignores
+  // navigator.vibrate so these no-op on iPhone — Android Chrome and most
+  // mobile browsers feel them.
+  function cueApproaching() {
+    if (navigator.vibrate) navigator.vibrate([45, 50, 60]);
+  }
+  function cueAtStop() {
+    if (navigator.vibrate) navigator.vibrate(180);
+  }
+  function cueComplete() {
+    if (navigator.vibrate) navigator.vibrate([90, 70, 90, 70, 180]);
   }
 
   function enterAtStop() {
@@ -3257,6 +3389,7 @@
     const stop = stopData[currentStopIdx];
     setLabel(`${stop.name} · Stop ${stop.num} of ${stopData.length}`);
     if (!isPaused) startLyricLoop();
+    cueAtStop();
   }
 
   function enterBetween() {
@@ -3271,6 +3404,11 @@
     document.getElementById('wq-eyebrow').textContent = 'Walking to';
     document.getElementById('wq-name').textContent = nextStop.name;
     document.getElementById('wq-distance').textContent = dist;
+    // Surface the "look for" prompt: belongs to the stop the user is leaving,
+    // because it describes what to notice on the walk between this stop and
+    // the next. The next stop's `payoff` resolves it on arrival.
+    const lookforEl = document.getElementById('wq-lookfor');
+    if (lookforEl) lookforEl.textContent = stopData[currentStopIdx].lookFor || '';
     // pin animates over the full between+approaching window
     setPin(STOP_POS[currentStopIdx], 0);
     requestAnimationFrame(() => {
@@ -3287,6 +3425,7 @@
     document.getElementById('wq-eyebrow').textContent = 'Approaching';
     document.getElementById('wq-name').textContent = stopData[next].name;
     // pin keeps animating from the between transition
+    cueApproaching();
   }
 
   function enterComplete() {
@@ -3297,6 +3436,7 @@
     setLabel('Tour complete · Kildoo Trail');
     // pin sits on the last stop
     setPin(STOP_POS[stopData.length - 1], 600);
+    cueComplete();
   }
 
   function scheduleNext() {
@@ -3455,13 +3595,13 @@
   const locAlertStart  = document.getElementById('loc-alert-start');
 
   function showLocationAlert(reason) {
-    const msg = "Location usually guides the tour.<br>Here, it'll play in order.";
+    const msg = "On the trail, stops play when you arrive.<br>This demo will auto-advance.";
     const copy = {
-      'denied':       { title: 'Location off',         msg },
-      'not-at-trail': { title: 'Not on the trail yet?', msg },
-      'error':        { title: 'Location unavailable', msg },
-      'unsupported':  { title: 'Location unavailable', msg },
-    }[reason] || { title: 'Location unavailable', msg };
+      'denied':       { title: 'Location off',           msg },
+      'not-at-trail': { title: 'Tours are location-based', msg },
+      'error':        { title: 'Location unavailable',   msg },
+      'unsupported':  { title: 'Location unavailable',   msg },
+    }[reason] || { title: 'Tours are location-based', msg };
 
     locAlertTitle.textContent = copy.title;
     locAlertMsg.innerHTML     = copy.msg;
@@ -3604,15 +3744,39 @@
     closeMoreSheet();
   });
 
-  // Camera — opens viewfinder; capture inside viewfinder fires the photo + context
+  // Camera — opens viewfinder; capture inside viewfinder fires the photo + context.
+  // On first camera tap of the session, a Trailogy-branded tip sheet
+  // explains the model is tuned for plants right now; the user dismisses
+  // it once and never sees it again that session. Production iOS: same
+  // sheet pattern gated by a `UserDefaults.bool(forKey:"cameraTipSeen")`
+  // flag, then launches the system UIImagePickerController — no custom
+  // AVFoundation camera required.
   const photoContextEl = document.getElementById('photo-context');
   const cameraView = document.getElementById('camera-view');
   const cvCloseBtn = document.getElementById('cv-close');
   const cvCaptureBtn = document.getElementById('cv-capture');
   const cvFlash = document.getElementById('cv-flash');
+  const camTipAlert = document.getElementById('cam-tip-alert');
+  const camTipOk = document.getElementById('cam-tip-ok');
+  let cameraTipSeen = false;   // session-only — reset clears this
 
-  function openCamera() {
+  function showCameraTip() {
+    camTipAlert.classList.add('is-shown');
+    camTipAlert.setAttribute('aria-hidden', 'false');
+  }
+  function hideCameraTip() {
+    camTipAlert.classList.remove('is-shown');
+    camTipAlert.setAttribute('aria-hidden', 'true');
+  }
+  function openCameraView() {
     cameraView.classList.add('is-shown');
+  }
+  function openCamera() {
+    if (!cameraTipSeen) {
+      showCameraTip();
+    } else {
+      openCameraView();
+    }
   }
   function closeCamera() {
     cameraView.classList.remove('is-shown');
@@ -3620,6 +3784,12 @@
 
   camBtn.addEventListener('click', openCamera);
   cvCloseBtn.addEventListener('click', closeCamera);
+  camTipOk.addEventListener('click', () => {
+    cameraTipSeen = true;
+    hideCameraTip();
+    // brief delay so the tip's fade-out doesn't fight the viewfinder's fade-in
+    setTimeout(openCameraView, 220);
+  });
 
   cvCaptureBtn.addEventListener('click', () => {
     cvCaptureBtn.classList.add('is-firing');
@@ -3688,35 +3858,10 @@
     go('journal');
   });
 
-  // Share sightings (citizen science queue)
-  document.body.addEventListener('click', e => {
-    const btn = e.target.closest('#share-btn');
-    if (!btn) return;
-    if (btn.classList.contains('is-shared')) return;
-    btn.classList.add('is-shared');
-    btn.innerHTML = '<span class="share-dot"></span>Queued for iNaturalist';
-    const status = btn.parentElement.querySelector('.send-status');
-    if (status) status.textContent = 'Will sync when you have signal';
-  });
-
   // ---------- reset ----------
-  function resetDownloadCard(wrapId, btnId, sizeText) {
-    const wrap = document.getElementById(wrapId);
-    if (!wrap) return;
-    wrap.innerHTML = `
-      <button class="dl-btn" id="${btnId}" data-state="idle">
-        <span class="dl-fill"></span>
-        <span class="dl-icon">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M5 1V7M5 7L2.5 4.5M5 7L7.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M1.5 9H8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-          </svg>
-        </span>
-        <span class="dl-text">Download · ${sizeText}</span>
-      </button>`;
-    attachDownload(btnId);
-  }
-
+  // Restores the demo's initial download state: Kildoo and Tranquil
+  // not downloaded; Old Field already on device (matches its
+  // "Completed Apr 14" badge in the picker).
   document.getElementById('reset').addEventListener('click', () => {
     lyricIdx = 0;
     currentStopIdx = 0;
@@ -3725,11 +3870,13 @@
     walkingEl.classList.remove('is-paused');
     pauseItem.classList.remove('is-paused');
     selectedTrail = 'kildoo';
+    cameraTipSeen = false;   // re-show the camera tip on the next tap
+    TRAILS.kildoo.downloaded   = false;
+    TRAILS.oldfield.downloaded = true;
+    TRAILS.tranquil.downloaded = false;
     syncTrailRuntime();
-    applyTrailToDetail();
-    detailLoadedTrail = null;  // force map rebuild on next detail open
-    resetDownloadCard('kildoo-status', 'dl-kildoo', '68 MB');
-    resetDownloadCard('tranquil-status', 'dl-tranquil', '42 MB');
+    applyTrailToDetail();         // also refreshes the CTA via updateBeginCta()
+    detailLoadedTrail = null;     // force map rebuild on next detail open
     go('picker');
   });
 
