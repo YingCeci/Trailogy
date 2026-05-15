@@ -10,6 +10,13 @@ struct DetailView: View {
 
     var trail: Trail { router.currentTrail }
 
+    /// Demo-mode framing alert. Tapping Begin presents a system iOS
+    /// alert explaining the location-based vs auto-advance behavior
+    /// (the production app would gate stop unlocks on Core Location;
+    /// this build can't be at the trail, so it ticks through on a
+    /// timer). See design/README.md item 15.
+    @State private var showBeginAlert: Bool = false
+
     var body: some View {
         ZStack {
             AppColor.mapBg.ignoresSafeArea()
@@ -87,7 +94,7 @@ struct DetailView: View {
                     .font(AppFont.sans(13.5, .medium))
 
                     Button {
-                        router.begin()
+                        showBeginAlert = true
                     } label: {
                         Text("Begin")
                             .font(AppFont.sans(17, .semibold))
@@ -113,6 +120,27 @@ struct DetailView: View {
                 )
             }
         }
+        // Demo-mode framing — fires on every Begin tap.
+        // Native SwiftUI .alert renders as the system iOS alert, so
+        // the chrome (rounded glass card, button row, blur backdrop)
+        // matches design/mockups.html `.ios-alert` for free. Tint is
+        // applied to the alert presenter so the primary "Begin Tour"
+        // button picks up the lime accent.
+        //
+        // Production path: replace the time-based phaseTimer in
+        // WalkingView with Core Location region monitoring; this
+        // alert becomes a real error path for GPS-denied / off-trail
+        // cases, not the default Begin flow. See design/README.md
+        // item 15.
+        .alert("Tours are location-based", isPresented: $showBeginAlert) {
+            Button("Cancel", role: .cancel) { }
+            Button("Begin Tour") {
+                router.begin()
+            }
+        } message: {
+            Text("On the trail, stops play when you arrive.\nThis demo will auto-advance.")
+        }
+        .tint(AppColor.lime)
     }
 
     private var formattedMiles: String {
