@@ -221,6 +221,8 @@ enum TrailData {
                 name: "Layered Cliffs",
                 imageURL: URL(string: "https://upload.wikimedia.org/wikipedia/commons/c/cc/Woodlands_around_McConnell%27s_Mill_State_Park.jpg"),
                 sentences: [
+                    "This gorge did not always look like this.",
+                    "Ancient glacial lakes once changed the path of water here.",
                     "Sandstone laid down 320 million years ago.",
                     "The orange streaks are iron oxide.",
                     "Groundwater carries it out of the rock."
@@ -294,12 +296,11 @@ enum TrailData {
         moderate — about an hour at a comfortable pace, with some \
         uneven footing where we drop into the gorge. We're at \
         McConnells Mill State Park, on the west bank of Slippery Rock \
-        Creek. The creek carved this sandstone gorge about fifteen \
-        thousand years ago, when the last glaciers retreated and a \
-        melt-water torrent cut this channel in a few hundred years.
+        Creek. About fifteen thousand years ago, the last glaciers melted.\
+        Glacier meltwater carved this sandstone gorge in just a few hundred years.\
         We'll pass a covered bridge from 1874 — one of two Howe-truss \
         bridges left in Pennsylvania — and a four-story grist mill that \
-        ground grain here until 1928. Above the gorge, eastern hemlocks \
+        ground grain here until nineteen twenty eight. Above the gorge, eastern hemlocks \
         lean over the water; some of them are three centuries old, \
         older than the country itself.
         Take your time. Listen for the creek. Stop and ask me about \
