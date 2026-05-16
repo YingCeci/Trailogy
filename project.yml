@@ -51,6 +51,15 @@ settings:
     DEVELOPMENT_TEAM: ""
     CODE_SIGN_STYLE: Automatic
     ENABLE_USER_SCRIPT_SANDBOXING: NO
+    # Silence the wall of `-Wunused-const-variable` warnings from
+    # MLX's Metal kernel headers (mlx/backend/metal/kernels/defines.h,
+    # quantized_nax.h). They're harmless — `constexpr int` constants
+    # are declared in the header but not used by every translation
+    # unit that #includes it. They live in the third-party SPM-fetched
+    # Cmlx target so we can't fix them upstream, only suppress.
+    # Targeted flag: our own code's unused-variable warnings still fire.
+    OTHER_CFLAGS: $(inherited) -Wno-unused-const-variable
+    OTHER_CPLUSPLUSFLAGS: $(inherited) -Wno-unused-const-variable
 
 targets:
   HikeCompanion:
