@@ -44,24 +44,16 @@ struct PickerView: View {
                     .padding(.horizontal, 16)
                     .padding(.bottom, 24)
 
-                    // Footer — visible Journal + Debug entries side-by-side.
-                    // Subtle but discoverable, matching the picker's
-                    // ink60 secondary-text style.
-                    HStack(spacing: 32) {
+                    // Footer — single Debug entry. The earlier "Journal"
+                    // shortcut was removed: with the new dynamic-walked-
+                    // badge flow (`router.walkedAt`), each picker card
+                    // surfaces its own "Completed [date]" badge that
+                    // taps through to that trail's Recap. A standalone
+                    // Journal link from the picker would just open the
+                    // currently-selected trail's recap with no walked
+                    // history, which isn't useful.
+                    HStack {
                         Spacer()
-                        Button {
-                            router.go(.journal)
-                        } label: {
-                            Text("Journal")
-                                .font(AppFont.sans(13, .medium))
-                                .foregroundStyle(AppColor.ink60)
-                        }
-                        .buttonStyle(.plain)
-
-                        Rectangle()
-                            .frame(width: 1, height: 11)
-                            .foregroundStyle(AppColor.ink25)
-
                         Button {
                             router.openDebug()
                         } label: {
