@@ -615,7 +615,7 @@ struct WalkingView: View {
                 .scrollDisabled(true)
                 .frame(maxWidth: .infinity)
                 // 320pt scroll + 12pt eyebrow + 14pt spacing = 346pt
-                // VStack content. From padding-top 240 → bottom y=586.
+                // VStack content. From padding-top 252 → bottom y=598.
                 .frame(height: 320)
                 .onChange(of: displayText) { _, _ in
                     Task { @MainActor in
@@ -633,7 +633,7 @@ struct WalkingView: View {
                 }
             }
         }
-        .padding(.top, 240)
+        .padding(.top, 252)
         // Pin to ZStack top edge — see narrationLaneView for why this
         // matters (default ZStack alignment would center-stack and
         // push the lyric bottom into the mic button).
@@ -681,13 +681,14 @@ struct WalkingView: View {
             .scrollDisabled(true)
             .frame(maxWidth: .infinity)
             .frame(height: 360)
-            // 240 = 226 (hero card bottom) + 14 visual margin. The
+            // 252 = 226 (hero card bottom) + 26 visual margin. The
             // hero card has a soft drop shadow that extends ~28pt
-            // below its rect; 14pt of clean margin keeps the lyric
-            // top from butting against it. Lyric bottom lands at
-            // 240+360 = 600, comfortably above the mic-button shadow
-            // upper edge at ~654.
-            .padding(.top, 240)
+            // below its rect; 26pt of clean margin gives the lyric
+            // top breathing room from the card's shadow halo
+            // (previously 14pt — the user asked for a touch more).
+            // Lyric bottom lands at 252+360 = 612, still safely
+            // above the mic-button shadow upper edge at ~654.
+            .padding(.top, 252)
             // Pin the lane to the ZStack's top edge so the padding
             // measurement actually anchors to y=0 (default ZStack
             // alignment is .center, which would float the whole block
