@@ -189,21 +189,32 @@ private struct TrailCard: View {
     /// Bottom layer — the trail's cover photo, filling the entire card.
     /// Cropped centre-out by `.scaledToFill().clipped()` regardless of
     /// source aspect.
+    ///
+    /// The `Color.clear.overlay { AsyncImage… }` pattern (rather than
+    /// AsyncImage with maxWidth/maxHeight directly) ensures the
+    /// container has zero intrinsic content size, so when the image
+    /// transitions from `.empty` placeholder to `.success` loaded
+    /// image, no layout reflow ripples to the other ZStack layers.
+    /// Without this wrapper, the stats row in the text overlay could
+    /// briefly collapse to zero height during AsyncImage's load
+    /// transition, leaving the stats invisible.
     private var photoLayer: some View {
-        AsyncImage(url: trail.coverImageURL) { phase in
-            switch phase {
-            case .empty:
-                AppColor.ink25
-            case .success(let img):
-                img.resizable().scaledToFill()
-            case .failure:
-                AppColor.ink25
-            @unknown default:
-                AppColor.ink25
+        Color.clear
+            .overlay {
+                AsyncImage(url: trail.coverImageURL) { phase in
+                    switch phase {
+                    case .empty:
+                        AppColor.ink25
+                    case .success(let img):
+                        img.resizable().scaledToFill()
+                    case .failure:
+                        AppColor.ink25
+                    @unknown default:
+                        AppColor.ink25
+                    }
+                }
             }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .clipped()
+            .clipped()
     }
 
     /// Middle layer — top-to-bottom gradient. Aggressive on purpose:
@@ -274,11 +285,18 @@ private struct TrailCard: View {
             .foregroundStyle(AppColor.ink100.opacity(0.95))
             .padding(.top, 6)
             .lineLimit(1)
-            // Drop minimumScaleFactor — with lineLimit(1) it can
-            // interact with SwiftUI's layout pass and collapse the
-            // HStack to zero height when the width is constrained.
-            // The stats text always fits at 14 pt on any iPhone size
-            // we care about, so scaling isn't actually needed.
+            // Belt-and-suspenders against the stats row vanishing
+            // during AsyncImage's load transition:
+            //   • `.frame(maxWidth: .infinity, alignment: .leading)`
+            //     claims the available width up front so the HStack
+            //     never gets re-measured to a tighter constraint.
+            //   • `.layoutPriority(1)` tells SwiftUI to satisfy this
+            //     row's size before considering compression of other
+            //     elements. Without it, when AsyncImage finishes
+            //     loading and the photo layer transitions size, the
+            //     stats row could lose its rendering allocation.
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .shadow(color: .black.opacity(0.55), radius: 4, x: 0, y: 1)
