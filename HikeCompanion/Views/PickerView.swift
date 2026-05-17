@@ -138,17 +138,20 @@ private struct TrailCard: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
-            // 21:9 ("cinematic ultrawide") — shorter than the mockup's
-            // 16:9 because the mockup is rendered at desktop viewport
-            // widths where the proportions read differently. At iPhone
-            // widths (~361 pt usable), 21:9 lands each card at ~155 pt,
-            // letting all three sit in a single iPhone-15-Pro viewport
-            // alongside the header and footer without scrolling. The
-            // text overlay (region/name/tagline/stats) compresses to
-            // ~80 pt at the bottom, leaving ~75 pt of photo above it
-            // for the establishing image to breathe through the scrim.
-            .aspectRatio(21.0/9.0, contentMode: .fit)
+            // Explicit fixed height instead of an aspect-ratio modifier.
+            // Aspect ratio on a ZStack inside a ScrollView negotiates
+            // height through its children's intrinsic content; that
+            // sometimes lets the card grow past the requested 21:9.
+            // A hard `.frame(height:)` is deterministic — every card
+            // is exactly this many points tall, the photo is cropped
+            // by `.scaledToFill().clipped()` to fit, and the text
+            // overlay anchors to the bottom with predictable headroom.
+            //
+            // 124 pt: ~62 pt for the text block (region/name/tagline/
+            // stats) + ~50 pt of photo showing above it through the
+            // scrim, with the badge sitting top-right.
             .frame(maxWidth: .infinity)
+            .frame(height: 124)
             .background(AppColor.ink25)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
