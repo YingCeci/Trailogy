@@ -147,11 +147,15 @@ private struct TrailCard: View {
             // by `.scaledToFill().clipped()` to fit, and the text
             // overlay anchors to the bottom with predictable headroom.
             //
-            // 124 pt: ~62 pt for the text block (region/name/tagline/
-            // stats) + ~50 pt of photo showing above it through the
-            // scrim, with the badge sitting top-right.
+            // 160 pt: text block at the bottom takes ~62 pt for the
+            // region/name/tagline/stats stack; that leaves ~98 pt of
+            // photo showing above it through the scrim with the badge
+            // sitting top-right. Compromise height — 124 pt felt
+            // cramped (text dominated), 200+ pt felt banner-like
+            // (photo dominated). 160 reads as a card with a real
+            // hero image and a tidy footer of content.
             .frame(maxWidth: .infinity)
-            .frame(height: 124)
+            .frame(height: 160)
             .background(AppColor.ink25)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
