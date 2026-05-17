@@ -38,6 +38,14 @@ struct DetailView: View {
                 mapCanvas
                 bottomAction
             }
+            // Ignore top + bottom safe areas so topHeader's padding
+            // and bottomAction's padding resolve to literal screen-
+            // edge distance (matching the mockup's `.dm-top` and
+            // `.dm-action` paddings, which are from viewport edges).
+            // Without this, iOS would compound its safe-area inset
+            // (~59 pt top, ~34 pt bottom) on top of those values,
+            // leaving visible dead space the user asked to reclaim.
+            .ignoresSafeArea(edges: [.top, .bottom])
         }
         // Demo-mode framing — fires on every Begin tap.
         // Native SwiftUI .alert renders as the system iOS alert, so
@@ -118,12 +126,12 @@ struct DetailView: View {
             Color.clear.frame(width: 32, height: 32)
         }
         .padding(.horizontal, 18)
-        // 44 pt past the safe-area inset (was 60 — felt loose). On
-        // iPhone 15 Pro the dynamic island ends ~59 pt from the top;
-        // 44 pt past that puts the back button + title around 103 pt
-        // — tight enough to feel intentional but with breathing room
-        // for the dynamic island to read as separate chrome.
-        .padding(.top, 44)
+        // 64 pt literal from screen top (the VStack ignores top
+        // safe area now). The dynamic island ends ~59 pt down on
+        // iPhone 15 Pro, so 64 pt clears it by 5 pt — minimum
+        // breathing room. Was 44 pt past safe-area inset (=103 pt
+        // total); now 64 pt total → 39 pt reclaimed.
+        .padding(.top, 64)
         .padding(.bottom, 14)
         .overlay(alignment: .bottom) {
             // Hairline divider into the map — mirrors the .dm-top
@@ -170,7 +178,13 @@ struct DetailView: View {
         }
         .padding(.horizontal, 22)
         .padding(.top, 18)
-        .padding(.bottom, 22)
+        // 40 pt literal from screen bottom (the VStack ignores
+        // bottom safe area now). Home indicator zone is ~34 pt;
+        // 40 pt clears it with a 6-pt margin so the CTA button
+        // doesn't visually collide with the swipe-up affordance.
+        // Was 22 pt past safe-area inset (=56 pt total); now
+        // 40 pt total → 16 pt reclaimed.
+        .padding(.bottom, 40)
         .background(
             Color(red: 15/255, green: 16/255, blue: 13/255).opacity(0.95)
                 .overlay(
