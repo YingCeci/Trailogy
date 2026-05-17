@@ -58,7 +58,15 @@ struct PickerView: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(AppColor.lime.opacity(0.9))
                         Text("Where should Trailogy take you?")
-                            .font(AppFont.sans(17, .regular))
+                            // 19 pt instead of the mockup's literal
+                            // 17 px because iOS substitutes SF Pro
+                            // for the mockup's Inter (Theme.swift
+                            // explains) — SF Pro has a smaller
+                            // x-height, so the same numeric point
+                            // size reads smaller. Bumping by ~12 %
+                            // lands the visual size in the same
+                            // ballpark as the mockup's rendering.
+                            .font(AppFont.sans(19, .regular))
                             .foregroundStyle(AppColor.ink100)
                     }
                     .padding(.horizontal, 22)
@@ -160,7 +168,14 @@ private struct TrailCard: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 275)
+            // 210 pt — close to the mockup's `aspect-ratio: 16/9` at
+            // typical iPhone widths (361-pt usable card width gives
+            // ~203 pt at 16:9). Slight upsize past 203 because the
+            // iOS text overlay block is ~10 pt taller than the
+            // mockup's (SF Pro substitution carries a touch more
+            // vertical space), so the visual proportion still reads
+            // like the mockup's hero photo with a tidy text band.
+            .frame(height: 210)
             .background(AppColor.ink25)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
@@ -214,41 +229,47 @@ private struct TrailCard: View {
     /// (lime) / trail name / one-line tagline / stats row. Drop
     /// shadow on each line as a safety net for the rare bright spot
     /// that still bleeds through the scrim.
+    ///
+    /// Type sizes are all ~10–15 % above the mockup's literal px
+    /// values to compensate for iOS's SF Pro vs the mockup's Inter
+    /// (see Theme.swift). The mockup specs are: region 10, name 24,
+    /// tagline 13, stats 13; iOS uses 11.5 / 26 / 14.5 / 14 to
+    /// reach the same visual weight.
     private var textOverlay: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(trail.region.uppercased())
-                .font(AppFont.sans(10, .semibold))
-                .tracking(1.6)
+                .font(AppFont.sans(11.5, .semibold))
+                .tracking(1.8)
                 .foregroundStyle(AppColor.lime)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
 
             Text(trail.name)
-                .font(AppFont.sans(22, .bold))
+                .font(AppFont.sans(26, .bold))
                 .foregroundStyle(AppColor.ink100)
-                .tracking(-0.4)
+                .tracking(-0.52)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .padding(.top, 1)
-
-            Text(trail.summary)
-                .font(AppFont.sans(13, .regular))
-                .foregroundStyle(AppColor.ink100.opacity(0.92))
-                .lineSpacing(1)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 2)
 
-            HStack(spacing: 8) {
+            Text(trail.summary)
+                .font(AppFont.sans(14.5, .regular))
+                .foregroundStyle(AppColor.ink100.opacity(0.92))
+                .lineSpacing(2)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 4)
+
+            HStack(spacing: 10) {
                 Text("\(formattedMiles) mi")
                 circleDot
                 Text(trail.difficulty)
                 circleDot
                 Text(durationLabel)
             }
-            .font(AppFont.sans(12.5, .medium))
+            .font(AppFont.sans(14, .medium))
             .foregroundStyle(AppColor.ink100.opacity(0.95))
-            .padding(.top, 4)
+            .padding(.top, 6)
             .lineLimit(1)
             .minimumScaleFactor(0.85)
         }
