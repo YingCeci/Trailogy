@@ -7,7 +7,7 @@
       "id": "geology",
       "displayName": "Geology",
       "file": "geology.jsonl",
-      "chunkCount": 25,
+      "chunkCount": 26,
       "embeddingDim": 384,
       "embeddingModel": "sentence-transformers/all-MiniLM-L6-v2",
       "indexFormat": "flat_f16",
