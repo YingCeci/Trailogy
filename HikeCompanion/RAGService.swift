@@ -69,7 +69,11 @@ final class RAGService: ObservableObject {
     // MARK: - Published state
 
     @Published private(set) var status: String = "RAG idle"
-    @Published private(set) var activeSubject: Subject?
+    /// Subjects currently loaded and queried during `retrieve`. An empty
+    /// set means RAG is dormant (Ask still works — just no retrieved
+    /// reference context injected). The picker can hold any combination
+    /// of the four subjects; retrieval merges top-k across all of them.
+    @Published private(set) var activeSubjects: Set<Subject> = []
     @Published private(set) var isModelLoaded: Bool = false
     @Published private(set) var isCorpusLoaded: Bool = false
 
@@ -99,38 +103,56 @@ final class RAGService: ObservableObject {
     private var modelBundle: Any?
     #endif
 
-    /// Active subject's chunks, parallel-indexed with `activeEmbeddings`.
-    private var activeChunks: [RAGChunk] = []
-
-    /// Float32 vectors for each chunk in the active subject. Outer
-    /// array index matches `activeChunks`; inner array length is
-    /// `embeddingDim` (L2-normalized at ingest time so cosine-sim is
-    /// just a dot product at retrieval).
-    private var activeEmbeddings: [[Float]] = []
+    /// Per-subject loaded corpora. Keys are the subjects in
+    /// `activeSubjects`; values are the parallel-indexed chunks +
+    /// L2-normalized Float32 embedding vectors (length `embeddingDim`,
+    /// so cosine-sim collapses to dot product). Subjects not in
+    /// `activeSubjects` are evicted from this map by
+    /// `setActiveSubjects(...)` so memory stays bounded.
+    private var loadedCorpora: [Subject: (chunks: [RAGChunk], embeddings: [[Float]])] = [:]
 
     // MARK: - Public API
 
-    /// Set the active subject. Loads its corpus from the app bundle
-    /// (synchronous, fast — small file I/O) but does NOT load the
-    /// embedding model — that happens lazily on the first `retrieve`
-    /// call to avoid paying the cost when the user opens a subject
-    /// they don't end up querying.
+    /// Set the active subjects. Loads each subject's corpus from the
+    /// app bundle (synchronous, fast — small file I/O) but does NOT
+    /// load the embedding model — that happens lazily on the first
+    /// `retrieve` call. Subjects already loaded are kept; ones no
+    /// longer in the set are evicted.
     ///
-    /// Pass `nil` to clear. Idempotent if `subject` matches the
-    /// already-active one.
-    func setActiveSubject(_ subject: Subject?) throws {
-        if subject == activeSubject { return }
-        activeSubject = subject
-        guard let subject else {
-            activeChunks = []
-            activeEmbeddings = []
-            isCorpusLoaded = false
-            status = "RAG idle"
-            print("[RAG] activeSubject cleared")
-            return
+    /// Pass an empty set to clear all RAG context. Idempotent if
+    /// `subjects` matches the already-active set.
+    func setActiveSubjects(_ subjects: Set<Subject>) throws {
+        if subjects == activeSubjects { return }
+        activeSubjects = subjects
+
+        // Drop subjects no longer active.
+        for existing in loadedCorpora.keys where !subjects.contains(existing) {
+            loadedCorpora.removeValue(forKey: existing)
         }
-        try loadCorpus(for: subject)
-        print("[RAG] activeSubject = \(subject.rawValue), \(activeChunks.count) chunks loaded")
+
+        // Load any new subjects.
+        for subject in subjects where loadedCorpora[subject] == nil {
+            try loadCorpus(for: subject)
+        }
+
+        let total = loadedCorpora.values.reduce(0) { $0 + $1.chunks.count }
+        isCorpusLoaded = !subjects.isEmpty
+        if subjects.isEmpty {
+            status = "RAG idle"
+            print("[RAG] activeSubjects cleared")
+        } else {
+            let names = subjects.map(\.rawValue).sorted().joined(separator: ", ")
+            status = "RAG ready · \(names) · \(total) chunks"
+            print("[RAG] activeSubjects = [\(names)], \(total) chunks loaded")
+        }
+    }
+
+    /// Convenience: set a single active subject, replacing whatever
+    /// was previously active. Equivalent to `setActiveSubjects([subject])`
+    /// or `setActiveSubjects([])` if `nil`. Kept for callers that want
+    /// the simpler shape.
+    func setActiveSubject(_ subject: Subject?) throws {
+        try setActiveSubjects(subject.map { [$0] } ?? [])
     }
 
     /// Eagerly download + load the embedding model. Called from
@@ -155,37 +177,41 @@ final class RAGService: ObservableObject {
     ///   - query: natural-language question text
     ///   - k: number of chunks to return (default 1; ADR caps at 2)
     func retrieve(query: String, k: Int = 1) async throws -> [RAGChunk] {
-        guard let subject = activeSubject else {
-            print("[RAG] retrieve skipped: no active subject")
+        guard !activeSubjects.isEmpty else {
+            print("[RAG] retrieve skipped: no active subjects")
             return []
         }
-        guard !activeChunks.isEmpty else {
-            print("[RAG] retrieve skipped: corpus empty for \(subject.rawValue)")
+        let totalChunks = loadedCorpora.values.reduce(0) { $0 + $1.chunks.count }
+        guard totalChunks > 0 else {
+            print("[RAG] retrieve skipped: corpora empty")
             return []
         }
         guard !query.isEmpty else {
             print("[RAG] retrieve skipped: empty query")
             return []
         }
-        print("[RAG] retrieve subject=\(subject.rawValue) k=\(k) q=\"\(query.prefix(80))\"")
+        let names = activeSubjects.map(\.rawValue).sorted().joined(separator: ",")
+        print("[RAG] retrieve subjects=[\(names)] k=\(k) q=\"\(query.prefix(80))\"")
 
         try await ensureModelLoaded()
         let queryVec = try await embed(query)
 
-        // Brute-force cosine similarity. Both query and chunk vectors
-        // are L2-normalized, so cosine == dot product.
-        // For 25 chunks × 384 dims this is ~10K multiplies — under a
-        // millisecond. Swap for ANN at >10K chunks.
-        var ranked: [(idx: Int, score: Float)] = []
-        ranked.reserveCapacity(activeChunks.count)
-        for (i, chunkVec) in activeEmbeddings.enumerated() {
-            ranked.append((i, dot(queryVec, chunkVec)))
+        // Brute-force cosine similarity across every chunk in every
+        // active subject — query and chunk vectors are L2-normalized
+        // so cosine collapses to a dot product. With 4 subjects × ~25
+        // chunks × 384 dims this is ~40K multiplies, well under a
+        // millisecond. Swap for ANN at >10K total chunks.
+        var ranked: [(chunk: RAGChunk, score: Float)] = []
+        ranked.reserveCapacity(totalChunks)
+        for (_, corpus) in loadedCorpora {
+            for (i, chunkVec) in corpus.embeddings.enumerated() {
+                ranked.append((corpus.chunks[i], dot(queryVec, chunkVec)))
+            }
         }
         ranked.sort { $0.score > $1.score }
-        let topK = ranked.prefix(k).map { activeChunks[$0.idx] }
+        let topK = ranked.prefix(k).map(\.chunk)
         if let top = ranked.first {
-            let chunk = activeChunks[top.idx]
-            print("[RAG] top: \(chunk.id) \"\(chunk.title)\" score=\(String(format: "%.3f", top.score))")
+            print("[RAG] top: \(top.chunk.id) (\(top.chunk.subject)) \"\(top.chunk.title)\" score=\(String(format: "%.3f", top.score))")
         }
         return Array(topK)
     }
@@ -247,14 +273,20 @@ final class RAGService: ObservableObject {
     /// `c.summary` and re-measure on device.
     func formatChunksForPrompt(_ chunks: [RAGChunk]) -> String {
         guard !chunks.isEmpty else { return "" }
-        guard let subject = activeSubject else { return "" }
-        var lines: [String] = [
-            "[REFERENCE — \(subject.displayName)]",
-        ]
-        for c in chunks {
-            lines.append("(\(c.title)) \(c.text)")
+        // Group by subject so the LM sees coherent reference blocks
+        // when multiple subjects are active and retrieval returned
+        // chunks from several at once.
+        let grouped = Dictionary(grouping: chunks, by: { $0.subject })
+        var lines: [String] = []
+        for subjectKey in grouped.keys.sorted() {
+            let displayName = Subject(rawValue: subjectKey)?.displayName
+                ?? subjectKey.capitalized
+            lines.append("[REFERENCE — \(displayName)]")
+            for c in grouped[subjectKey] ?? [] {
+                lines.append("(\(c.title)) \(c.text)")
+            }
+            lines.append("[/REFERENCE]")
         }
-        lines.append("[/REFERENCE]")
         return lines.joined(separator: "\n")
     }
 
@@ -358,10 +390,7 @@ final class RAGService: ObservableObject {
             embeddings.append(Array(f32Flat[start..<(start + embeddingDim)]))
         }
 
-        activeChunks = chunks
-        activeEmbeddings = embeddings
-        isCorpusLoaded = true
-        status = "\(subject.displayName) ready · \(chunks.count) chunks"
+        loadedCorpora[subject] = (chunks: chunks, embeddings: embeddings)
     }
 }
 

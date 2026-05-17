@@ -45,6 +45,23 @@ final class AppRouter: ObservableObject {
     /// fresh with no completion history.
     @Published var walkedAt: [String: Date] = [:]
 
+    /// Runtime override of the per-trail RAG subjects (see
+    /// `Trail.defaultRAGSubjects`). `nil` means "use the trail's
+    /// default"; any value (including an empty set) takes over.
+    /// Driven by DebugView's subject picker — the user can switch
+    /// the active RAG context on the fly for testing.
+    @Published var ragSubjectsOverride: Set<RAGService.Subject>? = nil
+
+    /// Resolve the RAG subjects to activate for a given trail —
+    /// override if set, otherwise the trail's curator-authored
+    /// default. Called by WalkingView when the tour begins.
+    func resolvedRAGSubjects(for trail: Trail) -> Set<RAGService.Subject> {
+        if let override = ragSubjectsOverride {
+            return override
+        }
+        return Set(trail.defaultRAGSubjects.compactMap(RAGService.Subject.init(rawValue:)))
+    }
+
     init() {
         downloadedTrailIDs = Set(
             TrailData.all.filter(\.initiallyDownloaded).map(\.id)

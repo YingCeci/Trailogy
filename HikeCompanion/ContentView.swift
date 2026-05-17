@@ -101,6 +101,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $router.debugVisible) {
             DebugView()
+                .environmentObject(router)
                 .environmentObject(gemma)
                 .environmentObject(tts)
                 .environmentObject(speech)

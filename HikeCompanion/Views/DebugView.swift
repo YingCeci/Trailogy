@@ -17,6 +17,8 @@ struct DebugView: View {
     @EnvironmentObject var gemma: GemmaService
     @EnvironmentObject var tts: ValidationRunner
     @EnvironmentObject var speech: SpeechRecognizer
+    @EnvironmentObject var router: AppRouter
+    @EnvironmentObject var rag: RAGService
 
     @State private var question: String = "What's a hemlock tree?"
     @State private var streamingText: String = ""
@@ -137,6 +139,8 @@ struct DebugView: View {
                     }
                 }
 
+                ragSubjectsSection
+
                 Section("Speak directly (debug)") {
                     TextField("Text", text: $directSpeakText, axis: .vertical)
                         .lineLimit(1...3)
@@ -178,6 +182,70 @@ struct DebugView: View {
             }
             .navigationTitle("Debug")
         }
+    }
+
+    // MARK: - RAG subjects picker
+
+    /// Override or fall back to per-trail defaults. Each toggle drives
+    /// `router.ragSubjectsOverride` directly; `Reset to per-trail
+    /// default` clears the override and the next tour reads
+    /// `Trail.defaultRAGSubjects` instead. Toggling any subject from
+    /// the default state automatically activates the override.
+    private var ragSubjectsSection: some View {
+        Section {
+            ForEach(RAGService.Subject.allCases) { subject in
+                Toggle(subject.displayName, isOn: bindingForSubject(subject))
+            }
+
+            HStack {
+                Text(modeLabel)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Reset to per-trail default") {
+                    router.ragSubjectsOverride = nil
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(router.ragSubjectsOverride == nil)
+            }
+        } header: {
+            Text("RAG context")
+        } footer: {
+            Text("Picks which subject corpora to query during Ask. Default per trail: \(trailDefaultLabel). Toggling any switch activates the override for every tour until Reset.")
+                .font(.caption2)
+        }
+    }
+
+    /// Two-way binding the Toggle drives. Reading: yes if the subject
+    /// is in the effective set (override if set, else trail default).
+    /// Writing: copies the current effective set into the override (if
+    /// not already) and adds/removes the subject.
+    private func bindingForSubject(_ subject: RAGService.Subject) -> Binding<Bool> {
+        Binding(
+            get: { effectiveSubjects.contains(subject) },
+            set: { isOn in
+                var s = effectiveSubjects
+                if isOn { s.insert(subject) } else { s.remove(subject) }
+                router.ragSubjectsOverride = s
+            }
+        )
+    }
+
+    /// Subjects currently in effect for the picker's selected trail —
+    /// override if the user has touched anything, otherwise the
+    /// trail's curator-authored default.
+    private var effectiveSubjects: Set<RAGService.Subject> {
+        router.resolvedRAGSubjects(for: router.currentTrail)
+    }
+
+    private var modeLabel: String {
+        router.ragSubjectsOverride == nil ? "Mode: trail default" : "Mode: override"
+    }
+
+    private var trailDefaultLabel: String {
+        let defaults = router.currentTrail.defaultRAGSubjects
+        return defaults.isEmpty ? "(none)" : defaults.joined(separator: " + ")
     }
 
     private func markMemoryEvent(_ label: String) {

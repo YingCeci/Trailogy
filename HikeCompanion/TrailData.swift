@@ -171,6 +171,21 @@ struct Trail: Identifiable {
     /// each anchored by a hero number/date/quantity. See the
     /// design/mockups.html `.discoveries` block.
     let learnings: [Learning]
+
+    /// Which RAG subjects to activate for this trail when the user
+    /// starts the tour. Raw strings (not the `RAGService.Subject`
+    /// enum) so this file can stay independent of the service layer.
+    /// WalkingView converts them to enum values at startup.
+    ///
+    /// Trail-specific picks (see RAG corpus authoring in
+    /// `HikeCompanion/Resources/RAG/`):
+    ///   • Kildoo — geology + plants (sandstone gorge + hemlocks)
+    ///   • Old Field — plants + geology (wildflowers + reclaimed land)
+    ///   • Tranquil — plants + geology (Frick Park trees + glacial valley)
+    ///
+    /// Can be overridden at runtime via `AppRouter.ragSubjectsOverride`,
+    /// which the DebugView's subject picker drives.
+    let defaultRAGSubjects: [String]
 }
 
 extension TrailStop {
@@ -391,7 +406,8 @@ enum TrailData {
                 body: "Weight of Slippery Rock — the sandstone boulder in the creek that gave the waterway its name. Algae keeps it slick.",
                 category: .geology
             )
-        ]
+        ],
+        defaultRAGSubjects: ["geology", "plants"]
     )
 
     /// Old Field & Jennings Trail Loop at the Wildflower Reserve,
@@ -617,7 +633,8 @@ enum TrailData {
                 body: "The slope at the east overlook drops toward this creek — the watershed that defines the park, and a tributary of the Ohio River.",
                 category: .water
             )
-        ]
+        ],
+        defaultRAGSubjects: ["plants", "geology"]
     )
 
     /// Tranquil Trail in Frick Park. Realigned with the mockup
@@ -754,7 +771,8 @@ enum TrailData {
                 body: "The coal-bearing strata beneath the park formed about 300 million years ago, when this region was a coastal swamp near the equator.",
                 category: .geology
             )
-        ]
+        ],
+        defaultRAGSubjects: ["plants", "geology"]
     )
 
     /// Order shown on the picker.
