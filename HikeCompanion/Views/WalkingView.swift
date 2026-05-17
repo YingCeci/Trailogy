@@ -1100,7 +1100,7 @@ struct WalkingView: View {
                 moreSheetItem(
                     icon: isPaused ? "play.fill" : "pause.fill",
                     label: isPaused ? "Resume tour" : "Pause tour",
-                    danger: false
+                    accent: false
                 )
             }
             .buttonStyle(.plain)
@@ -1117,7 +1117,7 @@ struct WalkingView: View {
                 moreSheetItem(
                     icon: "stop.fill",
                     label: "End tour",
-                    danger: true
+                    accent: true
                 )
             }
             .buttonStyle(.plain)
@@ -1135,8 +1135,14 @@ struct WalkingView: View {
         .shadow(color: .black.opacity(0.55), radius: 16, x: 0, y: 16)
     }
 
-    private func moreSheetItem(icon: String, label: String, danger: Bool) -> some View {
-        let color: Color = danger ? Color(red: 0.91, green: 0.72, blue: 0.54) : AppColor.ink100
+    /// Row inside the more sheet. `accent: true` paints the icon and
+    /// label lime — matching the tour-lifecycle CTAs (Begin on the
+    /// detail view, Open Journal on the recap). End Tour uses this
+    /// styling; Pause/Resume uses the neutral ink-100. Mirrors the
+    /// `.ms-item--end` rule in design/mockups.html (single-accent
+    /// rule — no off-palette amber/red for "danger").
+    private func moreSheetItem(icon: String, label: String, accent: Bool) -> some View {
+        let color: Color = accent ? AppColor.lime : AppColor.ink100
         return HStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 13, weight: .semibold))
