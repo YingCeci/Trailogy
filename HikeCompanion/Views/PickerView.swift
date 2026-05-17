@@ -130,23 +130,24 @@ private struct TrailCard: View {
                 photoLayer
                 scrimLayer
                 textOverlay
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 16)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
                 if case .walked(let date) = status {
                     walkedBadge(date: date)
                         .padding(14)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
-            // 2:1 ("cinematic wide") instead of the mockup's 16:9. The
-            // mockup is rendered in a desktop browser where 16:9 cards
-            // feel proportionate; on iPhone widths (≈ 361 pt usable),
-            // 16:9 produces ~203-pt cards × 3 — pushes the trio to the
-            // edge of the viewport with no breathing room. 2:1 lands
-            // each card at ~180 pt, three fit comfortably without
-            // cramping the text overlay block (region/name/tagline/
-            // stats needs ≈ 100 pt at the bottom).
-            .aspectRatio(2.0/1.0, contentMode: .fit)
+            // 21:9 ("cinematic ultrawide") — shorter than the mockup's
+            // 16:9 because the mockup is rendered at desktop viewport
+            // widths where the proportions read differently. At iPhone
+            // widths (~361 pt usable), 21:9 lands each card at ~155 pt,
+            // letting all three sit in a single iPhone-15-Pro viewport
+            // alongside the header and footer without scrolling. The
+            // text overlay (region/name/tagline/stats) compresses to
+            // ~80 pt at the bottom, leaving ~75 pt of photo above it
+            // for the establishing image to breathe through the scrim.
+            .aspectRatio(21.0/9.0, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .background(AppColor.ink25)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -198,18 +199,21 @@ private struct TrailCard: View {
     }
 
     /// Top layer — the text block, anchored to bottom-left. Region
-    /// eyebrow / trail name / one-line tagline / stats row.
+    /// eyebrow / trail name / one-line tagline / stats row. Sized to
+    /// fit comfortably inside a 21:9 card (~75 pt of photo above this
+    /// block at iPhone widths), so the tagline is clamped to a single
+    /// line and the inter-row spacing kept tight.
     private var textOverlay: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             Text(trail.region.uppercased())
-                .font(AppFont.sans(10, .semibold))
+                .font(AppFont.sans(9.5, .semibold))
                 .tracking(1.6)
                 .foregroundStyle(AppColor.ink100.opacity(0.85))
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
 
             Text(trail.name)
-                .font(AppFont.sans(22, .bold))
+                .font(AppFont.sans(20, .bold))
                 .foregroundStyle(AppColor.ink100)
                 .tracking(-0.4)
                 .lineLimit(1)
@@ -217,23 +221,23 @@ private struct TrailCard: View {
                 .padding(.top, 1)
 
             Text(trail.summary)
-                .font(AppFont.sans(12.5, .regular))
+                .font(AppFont.sans(11.5, .regular))
                 .foregroundStyle(AppColor.ink100.opacity(0.85))
-                .lineSpacing(1)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 4)
+                .lineSpacing(0)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.top, 2)
 
-            HStack(spacing: 8) {
+            HStack(spacing: 7) {
                 Text("\(formattedMiles) mi")
                 circleDot
                 Text(trail.difficulty)
                 circleDot
                 Text(durationLabel)
             }
-            .font(AppFont.sans(12.5, .medium))
+            .font(AppFont.sans(11.5, .medium))
             .foregroundStyle(AppColor.ink100.opacity(0.92))
-            .padding(.top, 6)
+            .padding(.top, 3)
             .lineLimit(1)
             .minimumScaleFactor(0.85)
         }
