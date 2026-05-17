@@ -34,7 +34,7 @@ struct PickerView: View {
                     .padding(.bottom, 26)
 
                     // Cards
-                    VStack(spacing: 18) {
+                    VStack(spacing: 14) {
                         ForEach(TrailData.all) { trail in
                             TrailCard(trail: trail) {
                                 router.choose(trail)
@@ -80,7 +80,15 @@ struct PickerView: View {
 
                     Color.clear.frame(height: 32)
                 }
-                .padding(.top, 70)  // status bar / dynamic island clearance
+                // iOS adds the dynamic-island/status-bar safe-area inset
+                // automatically; this is just visual breathing room past
+                // it. Was 70 — but that doubled up with the safe area
+                // and dropped the first card visibly low on the screen
+                // (≈ 129 pt of dead space above the header on iPhone 15
+                // Pro). 12 brings it in line with the mockup's intended
+                // top spacing (`padding: 70px 0 24px` on `.picker`,
+                // which absorbs the browser's status-bar zone).
+                .padding(.top, 12)
             }
             .scrollIndicators(.hidden)
         }
@@ -130,7 +138,15 @@ private struct TrailCard: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
-            .aspectRatio(16.0/9.0, contentMode: .fit)
+            // 2:1 ("cinematic wide") instead of the mockup's 16:9. The
+            // mockup is rendered in a desktop browser where 16:9 cards
+            // feel proportionate; on iPhone widths (≈ 361 pt usable),
+            // 16:9 produces ~203-pt cards × 3 — pushes the trio to the
+            // edge of the viewport with no breathing room. 2:1 lands
+            // each card at ~180 pt, three fit comfortably without
+            // cramping the text overlay block (region/name/tagline/
+            // stats needs ≈ 100 pt at the bottom).
+            .aspectRatio(2.0/1.0, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .background(AppColor.ink25)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
