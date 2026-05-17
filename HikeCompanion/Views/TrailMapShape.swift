@@ -69,11 +69,23 @@ struct TrailMapView: View {
                 .annotationTitles(.hidden)
             }
         }
-        // Standard Apple Maps tiles, flat (not 3D), in dark mode —
-        // matches the design language. The app forces .dark via
-        // ContentView, so the standard style renders dark
-        // automatically.
-        .mapStyle(.standard(elevation: .flat))
+        // Standard Apple Maps tiles, tuned to feel like the mockup's
+        // CARTO Dark Matter aesthetic within what MapKit allows:
+        //   • elevation: .flat — 2D, no 3D buildings/terrain
+        //   • emphasis: .muted — desaturated palette so the trail
+        //     polyline and lime markers carry the visual identity
+        //     and the underlying tiles fade back as context
+        //   • pointsOfInterest: only nature-relevant categories —
+        //     trail-head identity (.nationalPark, .park, .campground)
+        //     survives, but restaurants / gas stations / shops /
+        //     hotels / etc don't clutter the map.
+        // Combined with the .dark colorScheme ContentView forces, the
+        // base style renders in MapKit's dark variant by default.
+        .mapStyle(.standard(
+            elevation: .flat,
+            emphasis: .muted,
+            pointsOfInterest: .including([.nationalPark, .park, .campground])
+        ))
         // Disable the auto-controls we don't want: no compass, no
         // user location dot (we're not tracking the user yet), no
         // scale bar. Trail view is read-only contextual; pan/zoom
