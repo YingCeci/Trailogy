@@ -7,9 +7,42 @@ import SwiftUI
 struct PickerView: View {
     @EnvironmentObject var router: AppRouter
 
+    /// Lime ambient glow — two stacked radial gradients originating
+    /// from the top-left, behind the header. Mirrors the mockup's
+    /// `.picker { background: radial-gradient(...), radial-gradient(...) }`.
+    /// Inner spot is more intense and focused around the lime icon;
+    /// outer halo trails off across the upper-third of the screen
+    /// for a broader, calmer warmth.
+    private var limeGlow: some View {
+        ZStack {
+            RadialGradient(
+                colors: [AppColor.lime.opacity(0.10), .clear],
+                center: UnitPoint(x: 0.18, y: 0.02),
+                startRadius: 0,
+                endRadius: 160
+            )
+            RadialGradient(
+                colors: [AppColor.lime.opacity(0.04), .clear],
+                center: UnitPoint(x: 0.18, y: 0.02),
+                startRadius: 0,
+                endRadius: 400
+            )
+        }
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             AppColor.screenBg.ignoresSafeArea()
+
+            // Lime ambient glow — soft inner spot + wider outer halo
+            // originating from the top-left of the picker, sitting
+            // behind the heading. Mirrors design/mockups.html `.picker`
+            // background. Subtle but broad: the inner spot warms the
+            // header area, the halo trails off across the upper third
+            // of the screen without ever feeling saturated.
+            limeGlow
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -23,11 +56,10 @@ struct PickerView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "location.fill")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(AppColor.lime)
+                            .foregroundStyle(AppColor.lime.opacity(0.9))
                         Text("Where should Trailogy take you?")
-                            .font(AppFont.sans(18, .regular))
+                            .font(AppFont.sans(17, .regular))
                             .foregroundStyle(AppColor.ink100)
-                            .tracking(-0.2)
                     }
                     .padding(.horizontal, 22)
                     .padding(.top, 6)
@@ -72,12 +104,14 @@ struct PickerView: View {
 
                     Color.clear.frame(height: 32)
                 }
-                // No extra top padding — the iOS safe-area inset
-                // already provides dynamic-island clearance (~59 pt on
-                // iPhone 15 Pro). Anything on top of that is dead
-                // space. Header sits as close to the dynamic island as
-                // possible without clipping.
-                .padding(.top, 0)
+                // 12-pt margin past the iOS safe-area inset so the
+                // header sits a touch below the dynamic island instead
+                // of right against it — matches the mockup's
+                // `.picker-head { padding: 6px ... }` plus the 70-px
+                // top-of-`.picker`, which together put the question
+                // ~76 px from the top of the browser viewport. iOS
+                // safe area + 12 pt lands in the same visual ballpark.
+                .padding(.top, 12)
             }
             .scrollIndicators(.hidden)
         }
