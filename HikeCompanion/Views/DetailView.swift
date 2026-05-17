@@ -118,7 +118,12 @@ struct DetailView: View {
             Color.clear.frame(width: 32, height: 32)
         }
         .padding(.horizontal, 18)
-        .padding(.top, 60)
+        // 44 pt past the safe-area inset (was 60 — felt loose). On
+        // iPhone 15 Pro the dynamic island ends ~59 pt from the top;
+        // 44 pt past that puts the back button + title around 103 pt
+        // — tight enough to feel intentional but with breathing room
+        // for the dynamic island to read as separate chrome.
+        .padding(.top, 44)
         .padding(.bottom, 14)
         .overlay(alignment: .bottom) {
             // Hairline divider into the map — mirrors the .dm-top

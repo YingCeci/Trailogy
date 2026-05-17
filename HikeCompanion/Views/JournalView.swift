@@ -49,15 +49,15 @@ struct JournalView: View {
             ScrollView {
                 VStack(alignment: .center, spacing: 0) {
                     recapHeader
-                        // 64 pt to match the mockup's
-                        // `.journal { padding: 64px 0 32px }`.
-                        // Was 92 pt — chosen earlier to clear iOS's
-                        // safe-area inset; now redundant because the
-                        // ScrollView ignores top safe area below, so
-                        // 64 pt resolves to literal screen-top
-                        // distance and clears the dynamic island
-                        // (~59 pt) with a 5-pt margin.
-                        .padding(.top, 64)
+                        // 80 pt from screen top (was 64). The mockup's
+                        // `.journal { padding: 64px 0 32px }` reads
+                        // 64 px in a browser viewport; on iOS the
+                        // same number put the trailmark only 5 pt
+                        // below the dynamic island (which ends ~59 pt
+                        // down), too tight visually. 80 pt gives ~21 pt
+                        // of clearance — the trailmark reads as part
+                        // of the page rather than crowding the chrome.
+                        .padding(.top, 80)
                         .padding(.horizontal, 22)
                         .padding(.bottom, 36)
 
@@ -79,12 +79,13 @@ struct JournalView: View {
             .ignoresSafeArea(edges: .top)
 
             closeButton
-                .padding(.top, 64)
+                .padding(.top, 72)
                 .padding(.trailing, 24)
-                // Same top-only ignore — close button sits 64 pt
-                // from screen top, matching `.j-close-fixed
-                // { top: 64px; right: 24px }` in the mockup. iOS
-                // safe-area would otherwise push it down ~123 pt.
+                // Top-only safe-area ignore so the 72-pt padding
+                // resolves to literal screen-top distance (matches
+                // the recapHeader's 80-pt vertical center). Without
+                // this, iOS safe-area would push the close button
+                // down ~131 pt.
                 .ignoresSafeArea(edges: .top)
         }
     }
