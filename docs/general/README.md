@@ -7,53 +7,31 @@
 - Evaluation numbers across docs can drift because sample counts, datasets, prompts, and loaders changed during development.
 - The docs are organized by architecture, iOS runtime patterns, development timelines, eval parity audits, debugging notes, and the final shipped-model evaluation.
 
-## Reading order tied to the writeup
+## Read First
 
-| Writeup section | Doc |
+| If you want to understand... | Read |
 |---|---|
-| Architecture (offline stack, ~3.2 GB bundle) | [`01-architecture-model-pipeline.md`](01-architecture-model-pipeline.md) + [`02-architecture-ios-app.md`](02-architecture-ios-app.md) |
-| Technical Challenge #1 — Silent PEFT loading | [`14-package-versions-and-known-bugs.md`](14-package-versions-and-known-bugs.md) + [`12-mlx-vlm-vs-hf-kv-sharing.md`](12-mlx-vlm-vs-hf-kv-sharing.md) |
-| Technical Challenge #2 — On-device quantization | [`13-mlx-vision-input-parity.md`](13-mlx-vision-input-parity.md) + [`11-cuda-vs-mlx-eval-parity.md`](11-cuda-vs-mlx-eval-parity.md) + the per-method docs under [`../quantization/`](../quantization/) |
-| Technical Challenge #3 — Catastrophic forgetting | [`../finetune/03-anti-forgetting-and-final-recipe.md`](../finetune/03-anti-forgetting-and-final-recipe.md) + [`../data_mix/02-bucket-design.md`](../data_mix/02-bucket-design.md) |
-| Technical Challenge #4 — Offline honesty | [`../data_mix/01-data-prefix.md`](../data_mix/01-data-prefix.md) (offline_qa bucket) |
-| Eval methodology | [`10-eval-setup.md`](10-eval-setup.md) |
-| Final production-candidate eval (shipped model) | [`16-final-model-eval.md`](16-final-model-eval.md) |
-| What broke and how we noticed | [`15-postmortems.md`](15-postmortems.md) |
+| What the product does offline | [`02-architecture-ios-app.md`](02-architecture-ios-app.md) |
+| How the model pipeline connects data, SFT, quantization, and iOS | [`01-architecture-model-pipeline.md`](01-architecture-model-pipeline.md) |
+| Why memory management shaped the app | [`03-memory-management.md`](03-memory-management.md) |
+| What broke silently | [`15-postmortems.md`](15-postmortems.md) |
+| Which package/version bugs mattered | [`14-package-versions-and-known-bugs.md`](14-package-versions-and-known-bugs.md) |
+| How to interpret final model numbers | [`16-final-model-eval.md`](16-final-model-eval.md) and [`10-eval-setup.md`](10-eval-setup.md) |
 
-## All docs in this directory
+## Appendix Docs
 
-### Architecture
+These are useful for reproduction or debugging, but not required for first-pass
+review:
 
-- [`01-architecture-model-pipeline.md`](01-architecture-model-pipeline.md) — model-side pipeline (data mixture, SFT, quantization tracks) and how the deploy artifact lands in the iOS bundle.
-- [`02-architecture-ios-app.md`](02-architecture-ios-app.md) — iOS app architecture (views → services → frameworks), Ask pipelines, RAG path.
-- [`03-memory-management.md`](03-memory-management.md) — on-device memory discipline, two-phase Kokoro unload, quantization memory math.
-- [`04-xcode-build-and-deps.md`](04-xcode-build-and-deps.md) — Xcode build pipeline, model-variant switching, vendored SPM dependencies, Phase-7 build-setting fixes.
+- iOS build/dependency mechanics: [`04-xcode-build-and-deps.md`](04-xcode-build-and-deps.md)
+- RAG runtime details: [`05-rag-runtime.md`](05-rag-runtime.md)
+- Background/Metal lifecycle: [`06-scenephase-metal-background.md`](06-scenephase-metal-background.md)
+- Optimization backlog: [`07-optimizations-and-future.md`](07-optimizations-and-future.md)
+- Development timelines: [`08-dev-timeline-model.md`](08-dev-timeline-model.md), [`09-dev-timeline-ios.md`](09-dev-timeline-ios.md)
+- Cross-platform parity audits: [`11-cuda-vs-mlx-eval-parity.md`](11-cuda-vs-mlx-eval-parity.md), [`12-mlx-vlm-vs-hf-kv-sharing.md`](12-mlx-vlm-vs-hf-kv-sharing.md), [`13-mlx-vision-input-parity.md`](13-mlx-vision-input-parity.md)
 
-### Runtime patterns (iOS)
+## Important Caveat
 
-- [`05-rag-runtime.md`](05-rag-runtime.md) — on-device retrieval path, multi-subject active set, prompt injection.
-- [`06-scenephase-metal-background.md`](06-scenephase-metal-background.md) — why Swift can't catch the Metal-backgrounding crash and the two scenePhase gates that prevent it.
-- [`07-optimizations-and-future.md`](07-optimizations-and-future.md) — catalog of what shipped vs what's open.
-
-### Development timelines
-
-- [`08-dev-timeline-model.md`](08-dev-timeline-model.md) — SFT + data-mixture + quantization phases.
-- [`09-dev-timeline-ios.md`](09-dev-timeline-ios.md) — iOS app phases.
-
-### Eval and cross-platform parity audits
-
-- [`10-eval-setup.md`](10-eval-setup.md) — what the eval driver actually computes, the 300-sample PlantNet slice, **and explicit caveats about benchmark drift across phases**.
-- [`11-cuda-vs-mlx-eval-parity.md`](11-cuda-vs-mlx-eval-parity.md) — Linux mlx-cuda vs Mac mlx-metal numerical contract; why pypi `mlx-cuda-12==0.31.1` produces ~7 % on Gemma 4 INT4 and the from-source fix.
-- [`12-mlx-vlm-vs-hf-kv-sharing.md`](12-mlx-vlm-vs-hf-kv-sharing.md) — KV-shared layer parity audit between `transformers ≥ 5.8`, `mlx_vlm`, and `mlx-swift-lm`.
-- [`13-mlx-vision-input-parity.md`](13-mlx-vision-input-parity.md) — Gemma 4 train↔deploy image preprocessing parity (the `processor_config.json` 224×224 bug and the `mlx-swift-lm` fixed-stretch fallback).
-
-### Debugging knowledge
-
-- [`14-package-versions-and-known-bugs.md`](14-package-versions-and-known-bugs.md) — tested package versions and the known bugs in the stack (the transformers 5.5→5.8 silent PEFT-loading bug, the peft + gptqmodel dispatcher patch, etc.).
-- [`15-postmortems.md`](15-postmortems.md) — dated postmortems rolled up: overfit-memorization → save→reload, mlx quantization, mlx-on-Linux, train/eval data mismatch, eval-pipeline silent failures, HF trainer LR resume.
-- [`16-final-model-eval.md`](16-final-model-eval.md) — production-candidate eval rollup across plant_300 / mmlu_50 / aime_20 / llava_40 / refusal_20 / NA-tree_100, with the rationale for shipping the r8-a8-nokl + NA-tree stage-2 adapter.
-
-## Conventions
-
-- **Benchmark drift**: eval surface changed across phases. `n` went 200 → 300 → 2870; subsets and metrics evolved. Numbers in different docs are not always apples-to-apples; cross-phase comparisons are documented explicitly in [`10-eval-setup.md`](10-eval-setup.md).
-- **Hardware**: training on RTX 4090 (24 GB) + 4090 laptop (16 GB) + 2× A100 (40 GB) + H100/H200 cloud; MLX work on Apple Silicon (M-series). Specific machine identities are scrubbed; only the general class matters.
+Evaluation numbers across docs are not always apples-to-apples. Sample counts,
+splits, loaders, and prompt shapes changed during development. Use
+[`10-eval-setup.md`](10-eval-setup.md) before comparing numbers across phases.
