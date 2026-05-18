@@ -1,5 +1,9 @@
 # Linux mlx-cuda vs Mac mlx-metal as Eval Backends
 
+## TLDR
+
+pypi `mlx-cuda-12==0.31.1` is missing QMM kernel fixes and produces ~7.7% on Gemma 4 INT4 vs Mac mlx-metal 0.31.2 at 49.7% (100% pad-spam after ~10 tokens). Building mlx `main` HEAD from source (0.32.0.dev) recovers to ~40.6% with ~48% residual pad-spam. Linux aggregates are tight (+/-0.33 pp across 3 runs) so sweeps compare safely, but per-sample analysis is unreliable; the Mac->Linux gap is mostly residual pad-spam, not kernel arithmetic.
+
 A reference for anyone running `quantization/scripts/run/eval.py` on a
 Linux + NVIDIA box and wondering how the numbers compare to the
 authoritative Mac eval. Captures four things:
@@ -17,7 +21,7 @@ authoritative Mac eval. Captures four things:
    each run. The Mac→Linux gap is dominated by pad-spam, not by
    clean-output kernel arithmetic differences.
 
-## TL;DR
+## Backend Comparison
 
 | Backend | mlx version | M1 quant eval (n=300, seed=0) | Pad-spam rate | When to use |
 |---|---|---|---|---|

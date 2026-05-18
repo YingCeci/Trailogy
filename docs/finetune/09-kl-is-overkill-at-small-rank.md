@@ -1,6 +1,10 @@
 # 09 — KL is overkill on small-rank LoRA; it actively blocks plant learning
 
-## 1. TL;DR — KL strength vs the (plant, mmlu) dual indicator
+## TLDR
+
+Empirical KL-rank sweep shows KL regularization actively blocks plant learning at small rank: with KL=0.05 every rank from r=4 to r=32 stays at plant=0.000 (KL pulls logits back toward base, which never names species). KL=0 with alpha/r=1.0 at r=8 is SOTA (plant=0.23, mmlu=0.48 above base). At r=256 with KL=0.05, mmlu collapses to 0.10 — token-level KL cannot anchor a high-dim weight shift. Real anti-forgetting comes from the data mix, not KL.
+
+## 1. KL Strength vs the (plant, mmlu) Dual Indicator
 
 `PLANT_IMAGE_ROOT=data/english-desc-v2/images_resized/test`,
 `base_model=unsloth/gemma-4-E2B-it` (base mmlu=0.460, aime=0.100,

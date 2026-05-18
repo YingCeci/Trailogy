@@ -2,6 +2,10 @@
 
 # Finetune Pipeline — Projector + LoRA + Vision-Tower Last-N Mode
 
+## TLDR
+
+Opt-in mode that stacks on projector mode: unfreezes the last N transformer blocks of Gemma 4's SigLIP vision tower as full params via PEFT `modules_to_save`. For N=2 on the 16-layer encoder, ~14M extra trainable params. Works correctly after the PEFT orphan-tensor package fix, but projector-only still wins (100% vs 96% species match on overfit100). Treated as a default-negative probe at production scale; SigLIP is fragile to both training drift and PTQ.
+
 Adds full-param fine-tuning of the **last N transformer blocks** of
 the SigLIP vision encoder on top of the projector + LoRA pipeline.
 

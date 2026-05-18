@@ -1,5 +1,9 @@
 # B — mix-50k v2 (current production canonical) + mix-100k sibling
 
+## TLDR
+
+Current production canonical: 50,038-row mix (Plant ~44% / LLaVA 30% / smoltalk 15% / Negative 10% + 38 offline_qa persona records). Landed in commit `f6d0c1f` with four simultaneous changes vs v1: Cambrian → LLaVA (parquet-backed), 50K+100K sizes, per-source multi-val splits with full checkpoint retention, and native `image=None` for text-only smoltalk. A `mix-100k.yaml` sibling doubles per-bucket sizes for larger-compute runs.
+
 ## What this is
 
 The 50K-row v2 mix that the v3 anti-forgetting stack consumes. Used by

@@ -1,6 +1,10 @@
 # Why bnb NF4 is catastrophic on our SFT'd model
 
-## TL;DR
+## TLDR
+
+bnb NF4 collapses PlantNet from 70.6 % to 0.1 % while WikiText PPL only rises 1.42×, so the LM is fine but visual recognition is destroyed. A three-arm skip-list ablation (`skip_ev` / `skip_vt` / `skip_both` at n=300) isolates the SigLIP vision_tower as the sole culprit: keeping it bf16 recovers 67-69 % regardless of whether `embed_vision` is NF4'd. Rule: never quantize `vision_tower`.
+
+## Vision Collapse Summary
 
 `bnb_nf4` on the SFT'd Gemma 4 E2B drops PlantNet species_match from
 **70.6 % → 0.1 %** (2 / 2,870 correct). WikiText PPL **2,873 → 4,086**

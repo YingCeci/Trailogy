@@ -1,5 +1,9 @@
 # Model-Side Development Timeline (SFT · Data Mixture · Quantization)
 
+## TLDR
+
+10-day timeline (May 9-18, 2026) across three parallel tracks: Track A data mixture (4-bucket -> LLaVA -> offline_qa -> v4 50k), Track B SFT (baseline LoRA -> ModalityAware sampler -> anti-forgetting KL+L2 -> cloud sweeps), Track C quantization (PTQ framework -> hybrid CUDA/MLX -> EoRA training-free recovery). Hardware: 4090 desktop, A100 pair, H100/H200 cloud, Apple Silicon.
+
 Compressed timeline of the model pipeline work (May 9-18). Companion
 to [`09-dev-timeline-ios.md`](09-dev-timeline-ios.md) (iOS-app
 timeline, May 2-17).
@@ -308,7 +312,7 @@ timeline
     section May 15 (infra)
         src/ refactor       : quantization/src/ layout parity with finetune/
                             : 106 import-site rewrites (sed-driven)
-        YAML config wiring  : run_quant.py --config <yaml> (was: no-op)
+        YAML config wiring  : run_quant.py --config {yaml} (was: no-op)
         Hybrid CUDA         : GPTQ + torchao embedding pack (7.45 GB → 2.77 GB)
         Hybrid MLX driver   : mlx_vlm.load → mlx_lm.quant.* → save_weights
         EoRA post-quant     : eigenspace SVD of quant error

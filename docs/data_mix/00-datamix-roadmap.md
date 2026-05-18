@@ -1,5 +1,9 @@
 # 05c — data_mix roadmap
 
+## TLDR
+
+Strategic roadmap for the anti-overtraining mixed SFT corpus. Anti-overtraining is split into three independent levers: distribution diversity (this `src/data_mix/` module), KL+L2 regularizers, and a camera-state prefix gate. Tracks the v1 (20K) → v2 (50K/100K, LLaVA pivot) → v3 (task-tag dispatch + offline_qa persona bucket) → v4 (image-presence dispatch) evolution; v4 is production.
+
 > last edit: 2026-05-16
 
 Strategic overview for the anti-overtraining mixed SFT corpus.

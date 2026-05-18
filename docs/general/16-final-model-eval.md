@@ -1,5 +1,9 @@
 # 16 — Final Model Eval (production candidates)
 
+## TLDR
+
+Final eval across 4 production candidates on MLX 4-bit g64 (M5 Pro). Shipped model is `r8-a8-nokl + NA-tree stage-2 step 11k`: 31.0% plant_300, 50.0% mmlu_50, 15.0% aime_20, 100% refusal, 34.0% NA-tree (vs 0% for all stage-1 candidates). Chose the product-aligned model over the leaderboard winner (r16 step 20k, composite ~0.40) because correctly naming trees hikers actually see beats +6 pp on global PlantNet.
+
 > last edit: 2026-05-18
 >
 > All numbers below come from one evaluator —
@@ -208,24 +212,15 @@ Two effects worth calling out:
 
 ## 4. Source files
 
-All eval artifacts live under the private notes tree; this doc only
-captures the rolled-up numbers. Naming preserved to make grepping
-easy if someone has the internal logs.
+Per-run eval JSON artifacts and the NA-tree probe set live in
+internal notes; this doc captures the rolled-up numbers. The
+public-side scripts and eval sets are:
 
 | Item | Path |
 |---|---|
-| stage-2 (shipped) generality eval | `<private-notes>/_generality_results/generality_r8-a8-nokl-na-trees-ckpt10k_step11000.json` |
-| r16 stage-1 generality eval | `<private-notes>/_generality_results/generality_r16-a16-nokl-step20000_mlx_g64_plant300.json` |
-| r8 stage-1 generality eval | `<private-notes>/_generality_results/generality_r8-a8-nokl-step13000_mlx_g64_plant300.json` |
-| base generality eval | `<private-notes>/_generality_results/generality_base_gemma4e2b_4bit_plant300.json` |
-| NA-tree 4-model comparison (100 images) | `<private-notes>/na-trees/na100_4model_comparison.json` |
-| NA-tree 550-image per-species results | `<private-notes>/na-trees/na_trees_full_550_results.json` |
-| NA-tree correct-prediction subset (158 images + labels) | `<private-notes>/na-trees/correct/` |
-| NA-tree correct-prediction smoke subset (20 images + labels) | `<private-notes>/na-trees/correct-subset/` |
 | `plant_300` eval set | `finetune/eval_sets/plant_300.jsonl` |
 | `plant_na_100` eval set (the 9-species probe) | `finetune/eval_sets/plant_na_100.jsonl` |
 | Generality evaluator | `finetune/src/evaluate_generality.py` |
-| NA-tree evaluator | `<private-notes>/na-trees/run_inference.py` |
 
 ## Cross-references
 

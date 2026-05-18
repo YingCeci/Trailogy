@@ -1,5 +1,9 @@
 # C — v3 task-tag prefix: eval @ checkpoint-2000
 
+## TLDR
+
+Captures the empirical eval that justified (and then retired) the v3 source-keyed task-tag prefix. At `checkpoint-2000` of the 50K mix run: `[task=refuse] ` gave 100% exact-template refusal on 250/250 negatives; unprefixed nonplant held ROUGE-L 0.76 (anti-forgetting working); but `[task=plantnet] ` plant species exact-match was only 16.7% — format learning beat content learning. v3 was replaced same-day by the v4 camera-state gate.
+
 The v3 task-tag prefix dispatch (`[task=plantnet] ` / `[task=refuse] `
 keyed by `record.source`) shipped on 2026-05-16 and was replaced the
 same day by the v4 camera-state gate. Before the switch we ran a

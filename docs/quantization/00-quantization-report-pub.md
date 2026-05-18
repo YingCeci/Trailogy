@@ -1,5 +1,9 @@
 # Gemma 4 E2B — Quantization Overview
 
+## TLDR
+
+Entry-point doc for the Gemma 4 E2B quantization sweep. Target is a ≤4 GB iOS-loadable artifact from a 9.54 GB bf16 SFT merge. Recommended ship: M8b (MLX affine 4-bit g64 + EoRA r=64) at 3.6 GB / 88.0 % PlantNet (−0.3 pp vs bf16, within n=300 noise). B.1 hybrid GPTQModel+torchao on CUDA cross-validates at 3.41 GB / 83.7 %.
+
 One-page summary of the quantization sweep on the SFT'd Gemma 4 E2B.
 Per-method numbers and reproduction recipes live in the per-route
 files; this doc is the entry point and the headline-result table.
@@ -91,7 +95,7 @@ the MLX numbers.
 
 3. **GPTQ stable (M4) is NaN-free but per-row symmetric grid is too
    coarse.** Costs 22.7 pts vs the affine M2/M3 baseline. The
-   parameter-golf port works as a stability layer but its
+   stable GPTQ port works as a stability layer but its
    quantization grid is wrong for a 4.4 B model at 4-bit.
 
 4. **Calibration size dominates group_size for GPTQ quality.** Early

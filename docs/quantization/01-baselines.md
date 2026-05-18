@@ -1,11 +1,15 @@
 # Reference models — what we benchmark against
 
+## TLDR
+
+Audits the three public "4-bit" MLX checkpoints of Gemma 4 E2B against the 9.54 GB bf16 base. Only `mlx-community/gemma-4-e2b-it-4bit` (3.58 GB) is actually 4-bit on its quantized portion; Unsloth's UD-MLX-4bit variants average ~6.1 bits/param on the LM via mixed 4/5/6/8-bit. `mlx_vlm.convert` leaves vision_tower and audio_tower at bf16; stripping audio frees ~610 MB toward the 3.6 GB target.
+
 Three public 4-bit MLX quantizations of Gemma 4 E2B exist in the wild.
 We need to reproduce at least one (matching `mlx-community`'s 3.58 GB
 output to within tens of MB) before any custom quantization claim is
 credible.
 
-> **TL;DR.** All three repos call themselves "4-bit", but only ref1
+> **Key finding.** All three repos call themselves "4-bit", but only ref1
 > actually averages ~4.5 bits/param on its quantized portion. ref2 and
 > ref3 are mixed 4/5/6/8-bit with the LM averaging **~6.1 bits/param**.
 > "UD-MLX-4bit" means "MLX mixed-precision with 4-bit as the floor",

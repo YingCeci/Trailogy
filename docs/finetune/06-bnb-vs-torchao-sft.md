@@ -1,6 +1,10 @@
 # bnb 4-bit vs torchao QAT in the SFT stage — what they actually solve
 
-## TL;DR
+## TLDR
+
+bnb 4-bit (QLoRA) and torchao QAT are not interchangeable: bnb is a train-time VRAM tool (frozen NF4/FP4 base, bf16 LoRA on top), torchao QAT is a deploy-time accuracy tool (bf16 weights with fake-quant noise in forward). Our empirical signal: bnb-NF4 deploy ties bf16-SFT and QLoRA-SFT (69.3 vs 69.5%), but at MLX-INT4 g64 the QLoRA checkpoint collapses (22.5 vs 78.0%). bnb NF4 on the vision tower kills plant match to 0.1%. torchao QAT remains untested but worth a half-day probe.
+
+## Conceptual Distinction
 
 - **bnb 4-bit is a train-time VRAM tool.** It stores the frozen base
   weights as NF4/FP4 so a LoRA adapter can train on top in bf16. The

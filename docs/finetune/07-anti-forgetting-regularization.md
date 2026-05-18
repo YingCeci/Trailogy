@@ -1,5 +1,9 @@
 # 07 — Anti-forgetting Regularization (v3 SFT)
 
+## TLDR
+
+Deep-dive on the three anti-forgetting mechanisms designed for v3/v4 SFT, each covering a different attack surface: (1) KL penalty against the base via PEFT's `disable_adapter()` context (output-distribution drift), (2) L2 weight anchor toward init params (weight-space drift, EWC diagonal-ones approximation), (3) camera-state prefix tags `[camera=on]`/`[camera=off]` (input-gate modality signal). All three stack; the shipped recipe (see doc 03) pares back to just the camera-state tag.
+
 ## Context
 
 After the v2 mix (Plant 45 / LLaVA 30 / smoltalk 15 / Negative 10) the

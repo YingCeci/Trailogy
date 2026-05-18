@@ -1,5 +1,9 @@
 # Quantization roadmap — three routes, current priority, and why
 
+## TLDR
+
+Strategic route picker across three paths to a deployable 4-bit Gemma 4 E2B: A (4-bit SFT/QLoRA), B.1 (bf16 SFT → GPTQModel + torchao hybrid on CUDA), B.2 (bf16 SFT → MLX → mlx-lm quantize). Current decision: iOS deliverable ships from B.2 with M8b EoRA r=64 at 3.6 GB / 88.0 %. B.1 stays as the CUDA accuracy reference at 3.41 GB / 83.7 %.
+
 > last edit: 2026-05-18 (B.1 hybrid PyTorch route landed at 3.41 GB /
 > 83.7 %; B.2 + EoRA closes gap to 88.0 % at 3.6 GB; MLX bridge no
 > longer the only path to a sub-4 GB deliverable. iOS deploy artifact
@@ -7,7 +11,7 @@
 > Strategic-decision doc. Read after `README.md` and before any
 > route-specific spec.
 
-## TL;DR
+## Route Summary
 
 Three routes to a deployable 4-bit Gemma 4 E2B:
 
@@ -230,7 +234,7 @@ Status this round:
 - The 8-row ablation matrix in 08 §3 is **B.2 research backlog**, not
   the priority deliverable.
 - 08 §8 ("out of scope") is actually the **core MLX-native quant
-  work**: porting parameter-golf-dev's algorithm tricks
+  work**: porting stable GPTQ algorithm tricks
   (act-order, dead-column, auto-clip, LQER) into `mlx_lm/quant/gptq.py`.
   Until those land, B.2's GPTQ is just a weaker version of B.1's
   GPTQModel.
@@ -251,10 +255,10 @@ Status this round:
 | **B.1 torchao hybrid (R6)** | `B1-sft-results.md`, `B1-torchao-vs-gptqmodel.md` | ✅ **3.41 GB / 83.7 % n=300** — sub-4 GB on PyTorch/CUDA, zero loss vs R3 source |
 | MLX affine PTQ (M1-M3, vision-frozen) | `B2-sft-results.md` | ✅ 83-84 % n=300, 3.2-3.6 GB |
 | **B.2 + EoRA (M8b, r=64)** | `B2-sft-results.md` | ✅ **3.6 GB / 88.0 % n=300** — iOS deliverable, −0.3 pp vs M0 ceiling |
-| Cross-backend Linux mlx-cuda validation | `<private-notes>/10-misc/2026-05-15-mlx-linux-debug.md` | ✅ 40-41 % n=300 on 4090 box after source-build of `mlx` main (CUDA QMM kernel bug fixed); 9 pp gap vs Mac is CUDA/Metal numerics |
+| Cross-backend Linux mlx-cuda validation | `../general/11-cuda-vs-mlx-eval-parity.md` | ✅ 40-41 % n=300 on 4090 box after source-build of `mlx` main (CUDA QMM kernel bug fixed); 9 pp gap vs Mac is CUDA/Metal numerics |
 | HF GPTQ → MLX format bridge | TBW (B.1.3b) | deferred — not blocking deliverable |
 | Calibration data design | `04-calibration-data-design.md` | ✅ |
-| B.2 algorithm port from parameter-golf-dev | `B2-research-spec.md` §8 | research backlog |
+| B.2 algorithm-stability port | `B2-research-spec.md` §8 | research backlog |
 
 ## What this roadmap does NOT cover
 

@@ -1,5 +1,9 @@
 # 02 — Bucket design (record schema + per-source contracts)
 
+## TLDR
+
+Defines the unified JSONL record (`image`, `source`, `conversations`) and the per-source contracts for the five buckets: Plant (~45%), LLaVA (30%), smoltalk (15%), Negative (10%), plus the `offline_qa` persona bucket (~42 records; `[camera=off]` under v4, formerly unprefixed in v3). Drops in directly to `finetune/src/data.py::load_vision_dataset`. v1's dummy-gray-image trick for text-only smoltalk is replaced in v2 by native `image=None` routing.
+
 How each source bucket is built into a unified JSONL record that
 drops into `finetune/src/data.py::load_vision_dataset` without
 modification. Versioned: v1 used Cambrian (blocked) + a dummy gray

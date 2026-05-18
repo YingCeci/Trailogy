@@ -1,5 +1,9 @@
 # Gemma 4 E2B Finetune — Pipeline & Experiment Reports
 
+## TLDR
+
+Index for the Gemma 4 E2B bf16 finetune docs on PlantNet-300K. Starts with the end-to-end pipeline (`01`), the shipped canonical recipe with anti-forgetting (`03`), and the two opt-in tuning modes (`02` projector, `03-vision`). Decision and exploration notes follow: investigation of an outside tuner (`04`), the sweep plan (`05`), bnb-vs-torchao SFT (`06`), anti-forgetting deep-dive (`07`), the S_step framework (`08`), why KL hurts at small rank (`09`), and the late no-text-prefix + r=16 ablation (`10`).
+
 Engineering notes and experiment reports for the Gemma 4 E2B bf16
 finetune on PlantNet-300K.
 

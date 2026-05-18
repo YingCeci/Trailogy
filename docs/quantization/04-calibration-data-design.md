@@ -1,5 +1,9 @@
 # Calibration data design — text / mixed-text / multimodal
 
+## TLDR
+
+Route-agnostic spec for the calibration data used by GPTQ / AWQ / dynamic_quant. Defines three sources (WikiText-only, mixed WikiText+PlantNet, multimodal image+text) and three ablation questions (multimodal vs text-only, domain vs general, MLX vs HF cross-route consistency). Includes eval-leak guards rejecting `val.jsonl` and `overfit100*` paths.
+
 ## Scope
 
 Any calibration-driven PTQ (GPTQ, AWQ, dynamic_quant) needs a small

@@ -1,5 +1,9 @@
 # Quantization methods & eval
 
+## TLDR
+
+Catalogs every quantization method tested (`mlx_vlm.convert` affine + mixed-precision, MLX hybrid with mlx-lm cores, GPTQ/AWQ, bnb NF4, QAT) and the eval protocol. Default deploy method is `mlx_vlm.convert -q` because it's the only format `mlx-swift-lm` consumes; bnb NF4 is reference-only because it quantizes the vision tower and collapses PlantNet to 0.1 %. Quick-test eval = PlantNet n=300 at seed 0.
+
 What we test and how we measure it. Companion to:
 
 - `B1-sft-results.md` — per-variant HF/CUDA results

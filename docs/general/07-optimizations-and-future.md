@@ -1,5 +1,9 @@
 # Optimizations — Catalog of What Shipped & What's Open
 
+## TLDR
+
+Categorized catalog of every on-device and pipeline optimization that shipped, plus open future directions. Spans memory lifecycle, model size (audio-tower strip saved ~583 MB), generation parameters (maxTokens 120, maxKVSize 1024), TTS chunking (80-char cap), vision (1280px downscale, 960x672 metadata patch), and concurrency. Reference for what knobs already exist before adding new ones.
+
 Categorized list of every on-device / pipeline optimization that
 shipped, plus future directions that didn't make the hackathon
 deadline.

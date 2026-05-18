@@ -2,6 +2,10 @@
 
 # Finetune Pipeline — Projector + LoRA Mode
 
+## TLDR
+
+Opt-in mode that unfreezes Gemma 4's `embed_vision` projector (a single `RMSNorm + Linear`, ~1.18M params) as full params on top of the baseline LoRA pipeline. Full-param beats LoRA here because the projector is already small. This is the current production baseline-1 recipe (`r=256 + projector + data-aug-enwiki, 5 epochs`). Doc covers the five-step wiring in `finetune.py:real_train`, the PEFT `modules_to_save` mechanism, and the projector-aware freeze tripwire.
+
 Adds full-param fine-tuning of Gemma 4's `embed_vision` projector on
 top of the baseline LoRA pipeline. **This is the current production
 baseline-1 recipe** — `r=256 + projector + data-aug-enwiki, 5 epochs`

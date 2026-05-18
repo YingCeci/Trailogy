@@ -1,5 +1,9 @@
 # 10 — Dropping `[camera=off]` on text data + bumping rank to 16: new composite SOTA
 
+## TLDR
+
+Two ablations beat the docs/09 SOTA: removing the text-only `[camera=off]` prefix improves the r8 recipe, and r16/a16 with no text prefix reaches the new best composite score (0.415 at step 20000). New production candidate: `r16-a16-nokl-no-text-prefix` with plant=0.42, mmlu=0.54, aime=0.20. The `mixc` data variant is a negative result.
+
 > last edit: 2026-05-18 evening (MacBook M5 Pro eval patch)
 
 > **Status (2026-05-18, noon)**: 在 H200 上跑了两组新的对照
@@ -20,7 +24,7 @@
 > docs/09 §6 "production 配方"和 §8 "一句话总结"现在过时,
 > 见本文 §6。
 
-## 1. TL;DR — 三个 nokl 配方横向对比
+## 1. Nokl Recipe Comparison
 
 `PLANT_IMAGE_ROOT=data/english-desc-v2/images_resized/test`,base
 `unsloth/gemma-4-E2B-it` (base: plant=0.00, mmlu=0.46, aime=0.10),
@@ -329,20 +333,5 @@ by resuming from a frozen-tower checkpoint**。如果要做 vision-tower
 tuning, 需要 **from scratch with vision layers unfrozen from step 0**,
 让 LoRA/projector 跟 encoder 共同演化, 而不是 mid-flight 松开。
 
-## Source files
-
-| Cell | Path |
-|---|---|
-| r16-a16-nokl-no-text-prefix train.log + metrics | `<private-notes>/04-sft/run_logs/r16-a16-nokl-no-text-prefix_20260518_015342/{train.log,metrics.jsonl}` |
-| r16-a16-nokl-no-text-prefix step 5k eval | `<private-notes>/04-sft/run_logs/r16-a16-nokl-no-text-prefix_20260518_015342/generality_r16-a16-nokl-no-text-prefix_step5000.json` |
-| r16-a16-nokl-no-text-prefix step 15k/15490/18k/20k eval | `<private-notes>/04-sft/run_logs/_generality_results/generality_r16-a16-nokl-no-text-prefix_step{15000,15490,18000,20000}.json` |
-| r8-a8-nokl-no-text-prefix metrics + eval | `<private-notes>/04-sft/run_logs/r8-a8-nokl-no-text-prefix_20260518_090715/metrics.jsonl` + `_generality_results/generality_r8-a8-nokl-no-text-prefix_step5000.json` |
-| r8-a8-nokl-no-text-prefix-mixc metrics + eval | `<private-notes>/04-sft/run_logs/r8-a8-nokl-no-text-prefix-mixc_20260518_105110/metrics.jsonl` + `_generality_results/generality_r8-a8-nokl-no-text-prefix-mixc_step11000.json` |
-| r16-a16-nokl (control, WITH text prefix) | `<private-notes>/04-sft/run_logs/r16-a16-nokl_20260518_060937/metrics.jsonl` (eval pending) |
-| eval wrapper used for all generality numbers | `<private-notes>/06-local_test/eval_generality_patch/run.sh` (forwards `--prompt_prefix "[camera=on] "` to image domains; text domains carry no prefix) |
-| r8-a16-drop005-mix50k (4090→Mac eval) step 4k/5k/6k | `<private-notes>/04-sft/run_logs/_generality_results/generality_r8-a16-drop005-mix50k_20260517_134255_step{4000,5000,6000}.json` |
-| r8-a8-nokl-laptop (laptop 4090→Mac eval) step 1k/2k | `<private-notes>/04-sft/run_logs/_generality_results/generality_r8-a8-nokl-laptop_20260517_235718_step{1000,2000}.json` |
-| r8-a8-nokl-vision2-local (H200→local continue, Mac eval) step 10k | `<private-notes>/04-sft/run_logs/_generality_results/generality_r8-a8-nokl-vision2-local_20260517_200851_step10000.json` |
-| r8-a8-nokl-laptop adapter_config + trainer_state | `<private-notes>/04-sft/run_logs/r8-a8-nokl-laptop_20260517_235718/` |
-| r8-a8-nokl-vision2-local adapter_config + trainer_state | `<private-notes>/04-sft/run_logs/r8-a8-nokl-vision2-local_20260517_200851/` |
-| r8-a16-drop005-mix50k adapter_config + trainer_state | `<private-notes>/04-sft/run_logs/r8-a16-drop005-mix50k_20260517_134255/` |
+Run logs and per-step eval JSON live in internal notes; this doc
+captures the rolled-up numbers and decisions.

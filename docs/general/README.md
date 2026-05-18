@@ -1,5 +1,9 @@
 # general/ — cross-cutting docs
 
+## TLDR
+
+Index of cross-cutting Trailogy docs: architecture, iOS runtime, eval setup, parity audits, package bugs, postmortems, and final model eval.
+
 Architecture, dev timeline, runtime patterns, eval setup, and known-bug
 postmortems that don't belong to a single module
 (`data_mix/` / `finetune/` / `quantization/`).

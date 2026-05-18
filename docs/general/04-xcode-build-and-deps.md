@@ -1,5 +1,9 @@
 # Xcode Build Pipeline & Dependency Resolution
 
+## TLDR
+
+How Xcode propagates source/model/dep changes to the iPhone, plus the SPM conflict resolution for the vendored Kokoro + MLX stack. Key invariants: `Resources/Models/` is a blue-folder ref (recursive, no excludes, no symlinks on iOS); vendored `kokoro-ios`/`MisakiSwift`/`MLXUtilsLibrary` have relaxed MLX pins so `mlx-swift-lm 3.x` can coexist with KokoroSwift 1.0.11.
+
 How the iOS build picks up source / model / dependency changes, plus
 the SPM dependency conflict resolution for the vendored Kokoro / MLX
 stack. Combines the two sides of "why does this iOS build fail" into

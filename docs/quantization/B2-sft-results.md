@@ -1,5 +1,9 @@
 # SFT'd Gemma 4 E2B — MLX (iOS-deployable) quantization baselines
 
+## TLDR
+
+Per-variant MLX results on the data-aug-enwiki SFT — the actual iOS deploy candidates. bf16 ceiling (M0) is 88.3 % PlantNet at n=300. Flat affine (M1/M2/M3 at g128/g64/g32) lands 83-84 % at 3.2-3.6 GB. EoRA post-quant adapter on top of M2 recovers most of the drop: M8b r=64 at 3.6 GB / 88.0 % is within statistical noise of bf16 and is the recommended ship. MLX hybrid GPTQ/AWQ/DWQ cores are blocked or worse on Gemma 4.
+
 Per-variant detail for every MLX-side quantization we've run on our
 **SFT'd** Gemma 4 E2B. These are the candidates that load directly via
 `mlx_vlm.load` and `mlx-swift-lm` on iOS. HF/CUDA variants live in
@@ -16,7 +20,7 @@ Legend: ✅ done · 🟡 partial · ⏳ queued · ⛔ blocked
 | M1 | `mlx_vlm_g128_sft_aug_enwiki` | `mlx_vlm.convert -q --q-bits 4 --q-group-size 128` + custom `embed_vision`/`embed_audio` skip | 300 | **3.2** | **83.0 %** (249/300) | 0.794 | yes ✅ | −5.3 pts vs M0 🟡 |
 | M2 | `mlx_vlm_g64_sft_aug_enwiki` | `mlx_vlm.convert -q --q-bits 4 --q-group-size 64` + custom `embed_vision`/`embed_audio` skip | 300 | **3.4** | **83.7 %** (251/300) | 0.803 | yes ✅ | −4.7 pts vs M0 ✅ within 5 pt band |
 | M3 | `mlx_vlm_g32_sft_aug_enwiki` | `mlx_vlm.convert -q --q-bits 4 --q-group-size 32` + custom `embed_vision`/`embed_audio` skip | 300 | **3.6** | **84.0 %** (252/300) | 0.803 | yes ✅ | −4.3 pts vs M0 ✅ within 5 pt band |
-| M4 | `mlx_hybrid_gptq_stable_w4_g128` | hybrid + `gptq_stable.py` (desc_act + dead-col + symmetric clip; ported from parameter-golf) | 300 | **3.9** | **65.7 %** (197/300) | 0.663 | yes ✅ | −22.7 pts ⚠ NaN fixed but per-row symmetric scale too coarse |
+| M4 | `mlx_hybrid_gptq_stable_w4_g128` | hybrid + `gptq_stable.py` (desc_act + dead-col + symmetric clip; ported from a prior GPTQ implementation) | 300 | **3.9** | **65.7 %** (197/300) | 0.663 | yes ✅ | −22.7 pts ⚠ NaN fixed but per-row symmetric scale too coarse |
 | M5 | `mlx_hybrid_awq_w4_g128` | hybrid + AWQ_MODEL_CONFIGS["gemma3"] re-used for "gemma4_text" | — | — | ⛔ convert fails | — | — | `'Linear' object has no attribute 'input_feat'` — gemma3 topology insufficient for Gemma 4 |
 | M6 | `mlx_hybrid_dynamic_quant_bpw4_g128_v2` | hybrid + sensitivity-driven mix of (3-bit, 4-bit) groups, target_bpw=4, gradient_checkpoint=True | 300 | **3.2** | **83.3 %** (250/300) | 0.797 | yes ✅ | −5.0 pts vs M0 🟡 |
 | M7 | `mlx_hybrid_dwq_w4_g128` | hybrid + KL distillation training loop (teacher = bf16 LM) | — | — | ⏳ not attempted | — | — | requires multi-day plumbing (dataset adapter + training loop) |
@@ -63,7 +67,7 @@ sit beside the project root (`App/mlx-lm`, `App/mlx-vlm`).
 | Variant | Algorithm entry point | Key MLX file(s) |
 |---|---|---|
 | **M1, M2, M3** | flat affine PTQ via `mlx_vlm.convert -q` | `mlx-vlm/mlx_vlm/convert.py:158-170` (calls `quantize_model`) → `mlx-lm/mlx_lm/utils.py:774-850` (`quantize_model` → `nn.quantize` with `mode="affine"`). Per-tensor primitive: `mx.quantize(W, bits, group_size)` (per-group asymmetric scale + bias). |
-| **M4** (our stable port) | `gptq_stable.py` (desc_act + dead-col + symmetric clip, ported from parameter-golf PR#1855) | `src/quantization/src/methods/gptq_stable.py`. Original mlx-lm GPTQ for cross-reference: `mlx-lm/mlx_lm/quant/gptq.py` (229 LOC; per-row Cholesky, no desc_act, no dead-col handling). |
+| **M4** (our stable port) | `gptq_stable.py` (desc_act + dead-col + symmetric clip, ported from a prior GPTQ implementation) | `src/quantization/src/methods/gptq_stable.py`. Original mlx-lm GPTQ for cross-reference: `mlx-lm/mlx_lm/quant/gptq.py` (229 LOC; per-row Cholesky, no desc_act, no dead-col handling). |
 | **M5** (blocked) | AWQ scale + clip search | `mlx-lm/mlx_lm/quant/awq.py` (585 LOC; `AWQ_MODEL_CONFIGS` registry + `awq_quantize`). Blocked because there is no `gemma4_text` topology entry — see M5 detail above. |
 | **M6** | sensitivity-driven 3-bit / 4-bit mix | `mlx-lm/mlx_lm/quant/dynamic_quant.py` (259 LOC; `estimate_sensitivities` → `estimate_threshold` → `quantize_model` with per-path `quant_predicate`). |
 | **M7** (deferred) | KL-distillation training of scales/biases | `mlx-lm/mlx_lm/quant/dwq.py` (411 LOC). |
@@ -176,7 +180,7 @@ M0 (88.3 %) is 4.3 pt — within the comfortable band.
 **v2 (stable GPTQ) — 2026-05-15 evening:**
 
 - Pipeline: hybrid flow + `gptq_stable.py` (our implementation,
-  ported from parameter-golf PR#1855). Three fixes over mlx_lm GPTQ:
+  ported from a prior GPTQ implementation). Three fixes over mlx_lm GPTQ:
   1. **desc_act** — columns processed in descending Hessian-diagonal
      order, reducing error amplification.
   2. **Dead-column handling** — zero Hessian diagonal ⇒ zero weight
@@ -191,7 +195,7 @@ M0 (88.3 %) is 4.3 pt — within the comfortable band.
 - size = **3.9 GB** on disk; effective bits/weight = 5.470.
 - species_match = **65.7 %** (197/300); ROUGE-L mean = 0.663
 - Drop vs M0: **−22.7 pts** ⚠ — well below the affine variants.
-- **Root cause of poor quality**: the parameter-golf GPTQ was designed
+- **Root cause of poor quality**: the stable GPTQ path was designed
   for a ~50M param model at 6-7 bits. Its symmetric per-row scale
   (one scale per entire row) is too coarse for a 4.4B model at 4-bit.
   Per-group asymmetric scale (as in affine M1-M3) preserves much more
@@ -212,12 +216,12 @@ M0 (88.3 %) is 4.3 pt — within the comfortable band.
      left-to-right in natural order. GPTQ's error-propagation loop
      amplifies early errors. desc_act
      (`argsort(diag(H), descending)`) processes the most-informative
-     columns first, reducing error amplification. parameter-golf
-     does this; mlx_lm does not.
+     columns first, reducing error amplification. The stable GPTQ
+     implementation does this; mlx_lm does not.
 
   2. **No dead-column handling.** If `diag(H)[i] == 0` (a column
      never activated during calibration), Cholesky blows up.
-     parameter-golf sets `H[dead, dead] = 1` and zeros out the
+     The stable GPTQ implementation sets `H[dead, dead] = 1` and zeros out the
      corresponding weight columns. mlx_lm has no check. On Gemma 4,
      the KV-shared layers (15-34) have unusual activation patterns
      that produce near-zero Hessian diagonals on `o_proj` —
@@ -230,8 +234,8 @@ M0 (88.3 %) is 4.3 pt — within the comfortable band.
      propagating GPTQ error into neighboring columns — but the
      scales/biases were computed on the ORIGINAL weights, not the
      error-adjusted weights. The mismatch grows across groups and
-     eventually produces Inf scales. parameter-golf uses symmetric
-     per-row clipping with a configurable `clip_sigmas` and updates
+     eventually produces Inf scales. The stable GPTQ implementation uses
+     symmetric per-row clipping with a configurable `clip_sigmas` and updates
      scales only once per row.
 
 - v2 fix shipped as `quantization/src/methods/gptq_stable.py`. All

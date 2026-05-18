@@ -1,5 +1,9 @@
 # MLX-VLM / mlx-swift-lm vs hf_transformers — Gemma 4 E2B KV-share layout
 
+## TLDR
+
+Audit of KV-shared layer parity across `mlx_vlm` (Python), `mlx-swift-lm` (iOS), and `hf_transformers 5.8`. Both MLX paths compute KV-sharing semantically identically to v5.8 (correct); neither replicates the v5.5 bug. Difference: MLX still instantiates dead `k_proj`/`v_proj`/`k_norm`/`v_norm` on E2B layers 15-34 and loads inert weights (~7 MB int4) - no correctness impact, no LoRA implication for newly-trained adapters.
+
 Cross-check triggered by the overfit-memorization debug (see
 [`15-postmortems.md`](15-postmortems.md) §1 "PEFT silent loading"). On
 the training side, `transformers 5.5` exposed standalone `k_proj` /
@@ -18,7 +22,7 @@ Repos audited (as of 2026-05-14):
 - `mlx-swift-lm` (Swift, iOS runtime) — `Libraries/MLXLLM/Models/Gemma4Text.swift`
 - `hf_transformers` 5.8 — `src/transformers/models/gemma4/modular_gemma4.py`
 
-## TL;DR
+## KV-Sharing Verdict
 
 Both MLX paths compute KV-sharing **semantically identically** to
 `transformers 5.8` (the correct version). Neither replicates the

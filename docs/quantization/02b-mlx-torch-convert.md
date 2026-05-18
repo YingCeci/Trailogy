@@ -1,6 +1,10 @@
 # MLX ↔ PyTorch / HF transformers conversion — what we learned
 
-## TL;DR
+## TLDR
+
+The standard "PEFT merge → `mlx_vlm.convert`" recipe is silently broken on `transformers ≥ 5.8`: KV-shared layers 15-34 no longer allocate `k_proj`/`v_proj`/`k_norm`/`v_norm` as `nn.Parameter`, so `save_pretrained` drops them, and `mlx_vlm.convert` 0.4.3's strict loader errors with `Missing N parameters`. Fix is a safetensors-level merge that preserves the dead KV tensors byte-for-byte.
+
+## Compatibility Summary
 
 `transformers ≥ 5.8` + `mlx_vlm` 0.4.3 do not interoperate cleanly at
 convert time without help:

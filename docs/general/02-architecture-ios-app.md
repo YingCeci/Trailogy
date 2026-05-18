@@ -1,5 +1,9 @@
 # iOS App Architecture (Trailogy)
 
+## TLDR
+
+Architecture of the Trailogy iOS app: an offline trail guide running Gemma 4 E2B INT4 (LLM/VLM), Kokoro 82M (TTS), SFSpeechRecognizer (STT), and MiniLM-L6-v2 (RAG) on-device, no network at runtime. Total ~3.4 GB installed. SwiftUI views call services owned by `ContentView`; `WalkingView` is the only view driving ML inference.
+
 Architecture overview for the iOS app side of Trailogy. For the
 model-side pipeline (consumer of which is this app's `Models/Gemma/`),
 see [`01-architecture-model-pipeline.md`](01-architecture-model-pipeline.md).

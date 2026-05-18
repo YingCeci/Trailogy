@@ -1,5 +1,9 @@
 # A — mix-20k v1 (historical: Cambrian blocker → LLaVA pivot)
 
+## TLDR
+
+Historical record of the v1 20K mix (Plant 45 / Cambrian 30 / smoltalk 15 / Negative 10). Shipped in 13 commits plus a 7-commit post-audit fix batch (test count 40 → 54). Blocked by a `tarfile.ReadError` on `nyu-visionx/Cambrian-10M` streaming, which forced the pivot to LLaVA-instruct-mix-vsft in v2. Also documents the dummy-gray-image trick used for text-only smoltalk records, since superseded.
+
 ## What v1 was meant to ship
 
 A 20K-row mixed JSONL drop-in for

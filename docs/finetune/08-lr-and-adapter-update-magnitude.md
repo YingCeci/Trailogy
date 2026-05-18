@@ -1,6 +1,10 @@
 # 08 — LR, LoRA-scale, batch: per-step adapter update magnitude is the catastrophic-forgetting knob
 
-## TL;DR
+## TLDR
+
+Defines `S_step ~= (alpha/r) * lr * eff_bs` as a useful lower-bound proxy for per-step adapter update magnitude, but later audits show it is not a single-variable explanation: runs with the same `S_step=0.0064` range from mmlu=0.10 to 0.62. The revised hypothesis couples alpha/r, rank, and cumulative steps; the safer r8-a8-nokl recipe uses alpha/r=1.0, lr=3e-4, eff_bs=32, no KL.
+
+## Original Hypothesis
 
 Define the **per-step adapter update magnitude**:
 

@@ -1,5 +1,9 @@
 # 03 — Orchestrator + build pipeline
 
+## TLDR
+
+Documents `build_mix.sh` + `mix.py`, which assemble the bucket builders into a single shuffled JSONL plus per-source `val_*.jsonl` splits. All storage paths are env-var-driven (`HF_HOME`, `DATA_MIX_IMAGE_ROOT`, `DATA_MIX_OUTPUT_ROOT`, `PLANTNET_JSONL`, `OFFLINE_QA_JSON`) so no per-machine absolute paths leak into the public repo. The pipeline is idempotent (skip-if-exists image writer, HF cache) and deterministic (byte-identical output for the same seed).
+
 How `build_mix.sh` + `mix.py` turn the bucket builders into a single
 JSONL drop-in. Covers env-var-driven storage roots, idempotence,
 preflight checks, and validation.

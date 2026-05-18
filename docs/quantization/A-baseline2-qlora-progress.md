@@ -1,5 +1,9 @@
 # Direct-tune-on-4-bit (QLoRA) baseline — progress
 
+## TLDR
+
+Tracks Route A QLoRA-on-bnb-NF4 SFT as an alternative to bf16-SFT + PTQ. Training matched the bf16 baseline loss within noise and exposed the safetensors-level merge needed to preserve HF Gemma 4 KV-shared tensors for MLX conversion.
+
 Companion to `docs/B1-sft-results.md`. That file tracks
 the standard bf16-SFT → PTQ path (baseline-1). This folder tracks the
 **direct-tune-on-4-bit** alternative (baseline-2): train QLoRA on a

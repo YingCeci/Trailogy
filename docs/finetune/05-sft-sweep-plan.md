@@ -1,5 +1,9 @@
 # SFT sweep plan — adaptive multi-stage exploration
 
+## TLDR
+
+Pre-deadline plan to push SFT ceiling +2-5pp above baseline-1 (70.6% PlantNet n=2870) with a 3-stage adaptive sweep: single-knob ablations, combos, then full eval + quantization. Stage 1 results (after fixing an n=200-vs-n=300 reference mistake): baseline-4 (`+drop005`) +12.67pp and baseline-6 (`-projlr1e4`) +13.67pp are strong promotion candidates; baseline-5 (`-a512`) +4.67pp is weaker.
+
 > last edit: 2026-05-16
 > Strategic + execution plan for the pre-deadline SFT push.
 > Companion to:
@@ -8,7 +12,7 @@
 > - `03-vision-mode.md` — `tune_last_n_vision_layers` mode
 > - `../../quantization/A-baseline2-qlora-progress.md` — QLoRA route A
 
-## TL;DR
+## Sweep Plan
 
 We have one baseline (`baseline-1` bf16 LoRA r=256 + full projector +
 data-aug-enwiki, 5 epoch). Full eval = 70.6 % PlantNet n=2,870.
@@ -162,8 +166,9 @@ bus). Baseline-1's 10 h on 4090 → ~6-7 h on 5090. baseline7
 
 After every stage, score each config on the **PlantNet val quick eval
 (n=300, seed=0)** running locally on the 4090 desktop via the
-`mlx-cuda` build (see `<private-notes>/10-cuda-vs-mlx-eval.md` —
-aggregate noise floor ±0.33 pp on Linux at n=300; signal Δ ≥ 1.0 pp
+`mlx-cuda` build (see
+[`../general/11-cuda-vs-mlx-eval-parity.md`](../general/11-cuda-vs-mlx-eval-parity.md)
+— aggregate noise floor ±0.33 pp on Linux at n=300; signal Δ ≥ 1.0 pp
 is treated as real). Quick eval is enough to rank; full n=2,870 only
 runs on Stage 3 winners.
 
@@ -274,9 +279,7 @@ number is taken from
 > The SAME baseline-1 checkpoint scores **58.0 % on the current
 > canonical val.jsonl** (n=300, head-slice — see "baseline-1 reference
 > re-aligned" below) and **86.7 % on test.jsonl** — that ~29 pp gap is
-> purely the eval-set distribution shift, NOT a model property. See
-> `<private-notes>/10-misc/2026-05-15-train-eval-data-mismatch.md` §"Third
-> finding — `val.jsonl` ≠ `test.jsonl` at n=300" for the full breakdown.
+> purely the eval-set distribution shift, NOT a model property.
 
 > **baseline-1 reference re-aligned (2026-05-16).** The archived
 > baseline-1 result JSON
@@ -289,9 +292,7 @@ number is taken from
 > prefix of n=300 — but the file itself has changed.
 >
 > The original 72.0 % was measured against the **stale 4090 val.jsonl
-> from before the canonical `prepare_plantnet_50k.sh` flow landed**
-> (the file whose mismatch is documented in
-> `<private-notes>/10-misc/2026-05-15-train-eval-data-mismatch.md`).
+> from before the canonical `prepare_plantnet_50k.sh` flow landed**.
 > That stale val.jsonl pointed at raw `PlantNet-300K-data-v2/test/`
 > images and was head-of-tail-biased like `test.jsonl` is today. The
 > current canonical val.jsonl is in-distribution-from-`train/` and
@@ -654,9 +655,8 @@ dropped to P3.
 | Stage 1 launcher | `src/finetune/scripts/run/stage1_sweep.sh` |
 | Train + auto-eval | `src/finetune/scripts/run/train.sh` |
 | Save/reload preflight | `src/finetune/scripts/inspect/save_reload.py` |
-| Eval-side noise contract (Linux 4090 ±0.33 pp at n=300) | `<private-notes>/<private-notes>/10-cuda-vs-mlx-eval.md` |
+| Eval-side noise contract (Linux 4090 ±0.33 pp at n=300) | `docs/general/11-cuda-vs-mlx-eval-parity.md` |
 | Baseline-1 progress / number | `docs/quantization/B1-sft-results.md` R0 |
 | Projector mode mechanism | `docs/finetune/02-projector-mode.md` |
 | Vision-mode mechanism | `docs/finetune/03-vision-mode.md` |
 | Route-B.1 quant (deploy-time PTQ on bf16) | `docs/quantization/00-quantization-roadmap.md` |
-| Deadline plan | `<private-notes>/DEV_TIMELINE.md` |

@@ -1,5 +1,13 @@
 # Docs
 
+## TLDR
+
+Engineering notes and experiment reports for the Trailogy model
+pipeline. Four folders mirror `src/` (`data_mix`, `finetune`,
+`quantization`) plus a cross-cutting `general/` (architecture,
+timelines, eval, postmortems). The "Reading order" section below is
+the shortest path to "what shipped and why".
+
 Engineering notes and experiment reports. The per-module docs mirror
 the code under `src/`; `general/` carries cross-cutting docs
 (architecture, dev timelines, eval setup, known bugs, postmortems).

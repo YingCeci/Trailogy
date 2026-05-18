@@ -1,10 +1,14 @@
 # 03 — Anti-forgetting and the Final SFT Recipe
 
+## TLDR
+
+The shipped recipe: `r=8`, `alpha=8` (alpha/r=1.0), `lora_dropout=0.05`, projector tuned, no KL, no L2, 3 epochs on mix-50k at lr=3e-4. Result on a 300-sample PlantNet val slice: plant species match 0.000 -> 0.230, mmlu 0.460 -> 0.480, aime 0.100 -> 0.200. Of three anti-forgetting levers considered (KL, L2 weight anchor, camera-state prefix tag), only the camera-state prefix made it into production.
+
 How we kept Gemma 4 E2B from forgetting how to be a general assistant
 while teaching it 782 plant species, and the small-rank recipe that
 actually shipped.
 
-## TL;DR — The final recipe
+## Final Recipe
 
 ```yaml
 # The only empirically-verified config that gives both plant > 0

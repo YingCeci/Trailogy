@@ -1,5 +1,9 @@
 # Model-Side Architecture Overview
 
+## TLDR
+
+End-to-end pipeline turning stock `unsloth/gemma-4-E2B-it` into an SFT'd, quantized checkpoint that ships under iOS's ~4 GB jetsam ceiling while keeping >=46% MMLU and >=60% PlantNet match. Three parallel tracks (`data_mix/`, `finetune/`, `quantization/`) share one eval surface and land the artifact in the iOS bundle's `Models/Gemma/`.
+
 End-to-end model pipeline that turns stock `unsloth/gemma-4-E2B-it`
 into an SFT'd, data-mixed, deploy-quantized checkpoint that ships
 inside the Trailogy iOS bundle under the ~4 GB jetsam ceiling, retains
@@ -86,7 +90,7 @@ sequenceDiagram
     participant TR as ModalityAwareSFTTrainer
     participant REG as RegularizationState
     participant EVAL as evaluate.py
-    participant FS as outputs/<run>/
+    participant FS as outputs/{run}/
 
     CFG->>FT: load_config()
     FT->>FT: validate (4-bit-in-trainable, 8-bit-optim,<br/>vision-without-projector, KL+modality coupling)
@@ -158,7 +162,7 @@ sequenceDiagram
     participant LS as llava_sampler
     participant OS as offline_qa_sampler
     participant SCH as schema validator
-    participant OUT as data_mix/_local/<mix>/
+    participant OUT as data_mix/_local/{mix}/
 
     BM->>BM: env preflight (HF_HOME, DATASETS_DIR exist)
     BM->>CFG: yaml.safe_load
@@ -182,7 +186,7 @@ sequenceDiagram
     SCH-->>ORC: pass / InsufficientPoolError
 
     ORC->>ORC: class_stratified_split (per-species val)
-    ORC->>OUT: train.jsonl + val/<source>.jsonl + manifest
+    ORC->>OUT: train.jsonl + val/{source}.jsonl + manifest
 ```
 
 Samplers share a 960×672 stretch-resize helper that mirrors
@@ -204,7 +208,7 @@ time and deploy-time `mlx-swift-lm` (see
 ```mermaid
 flowchart TB
     subgraph SFT["SFT artifact"]
-        S1["finetune/outputs/<run>/<br/>final_adapter/ + base_bf16/"]
+        S1["finetune/outputs/{run}/<br/>final_adapter/ + base_bf16/"]
     end
 
     subgraph Merge["Merge (safetensors-level)"]
@@ -285,7 +289,7 @@ sequenceDiagram
     participant PN as eval/plantnet.py
     participant WT as eval/wikitext_ppl.py
     participant J as judge.py (Qwen2.5-VL-72B)
-    participant OUT as outputs/<run>/eval.json
+    participant OUT as outputs/{run}/eval.json
 
     CLI->>LOAD: dispatch loader (hf_bf16 / hf_gptq / hf_bnb_nf4 /<br/>hf_gptq_hybrid / mlx_vlm)
     LOAD-->>RUN: model + tokenizer + processor

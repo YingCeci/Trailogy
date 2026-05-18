@@ -1,5 +1,9 @@
 # Evaluation Pipeline — `finetune/src/evaluate.py` + `quantization/src/eval/`
 
+## TLDR
+
+What the eval driver computes and why cross-phase numbers are NOT apples-to-apples: `n` drifted 200->300->2870, val pool changed across data-mix versions, prefix scheme moved from source-keyed v3 `[task=*]` to modality-keyed v4 `[camera=on/off]`, and loader backends span hf_bf16/gptq/bnb-nf4/mlx_vlm/mlx_lm. Three shared metrics: `species_match` (strict), `rouge_l` (soft), and Qwen2.5-VL-72B LLM-as-judge. Default n=300, seed=0, 12-prompt paraphrase pack.
+
 What the eval driver actually does, what metrics it computes, what the
 default PlantNet subset looks like, and — importantly — why numbers
 from different phases of the project are not directly comparable.
@@ -35,7 +39,7 @@ combinations that look like apples-to-apples comparisons are not:
 
 This doc describes the **current** (May 18, 2026) eval surface.
 
-## TL;DR
+## Eval Entry Points
 
 We have two entry points, both ending in the **same metric code** so
 numbers from one invocation are internally comparable:

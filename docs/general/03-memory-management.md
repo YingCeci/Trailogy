@@ -1,5 +1,9 @@
 # Memory Management & iPhone Optimizations
 
+## TLDR
+
+iOS memory discipline under iPhone's ~5-6 GB jetsam threshold. Two rules: Gemma and Kokoro never coexist (load-per-use, unload before hand-off); MiniLM (~87 MB) stays resident. Trades 10-30s per-Ask reload latency for memory safety. Idle baseline is ~100 MB; text Ask peaks around ~3.0 GB, while VLM prefill can peak around ~3.85 GB.
+
 iOS on-device memory discipline + the quantization memory math that
 dictates the deploy artifact size.
 

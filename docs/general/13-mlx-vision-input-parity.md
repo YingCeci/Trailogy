@@ -1,12 +1,16 @@
 # MLX Vision Input Parity — Gemma 4 E2B on `mlx-community` + `mlx-swift-lm`
 
+## TLDR
+
+Two compounding bugs cause train/inference distribution mismatch on Gemma 4 vision. Bug A: `mlx-community`'s `processor_config.json` adds a wrong `size: 224x224` (upstream Google has none), collapsing the kernel-3 pooler to produce 196 real + 84 zero soft tokens instead of a clean 280. Bug B: `mlx-swift-lm`'s `Gemma4Processor` does fixed-size stretch without aspect preservation or 2D `image_position_ids`. Workaround: force-rewrite to 960x672 after fetch and pre-stretch training images to match.
+
 A deep-dive into a quiet bug the iOS app has been silently working
 around since the first VLM build. It surfaces when you try to fine-tune
 the checkpoint and deploy: train and inference end up reading two
 different input distributions. Understanding it is necessary before
 signing off on the finetune → MLX export pipeline.
 
-## TL;DR
+## Vision Input Comparison
 
 | | What it should be | What `mlx-community` ships | What `mlx-swift-lm` does |
 |---|---|---|---|

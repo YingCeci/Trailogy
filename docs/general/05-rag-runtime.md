@@ -1,5 +1,9 @@
 # RAG Runtime — On-Device Retrieval Path
 
+## TLDR
+
+On-device RAG: bundled MiniLM-L6-v2 (~87 MB resident) + 4 pre-embedded subject corpora (geology/plants/physics/english, ~200 KB / 91 chunks total). Multi-subject active set per trail with DebugView override; top-k chunks injected one-shot into Gemma's user prompt and cleared after stream. Stays loaded across Gemma load/unload cycles without ever competing with the LLM.
+
 Semantic retrieval against four pre-embedded subject corpora,
 multi-subject active set per trail with runtime override, top-k chunks
 injected into Gemma's user prompt one-shot.
@@ -25,8 +29,8 @@ the naive "download MiniLM on first launch" approach:
 ```mermaid
 flowchart LR
     subgraph Bundle["App Bundle (~87 MB + ~200 KB)"]
-        M[Models/MiniLM/<br/>config.json<br/>model.safetensors<br/>tokenizer.*]
-        R[Resources/RAG/<br/>geology.jsonl + .embeddings.f16 (26 chunks)<br/>plants.jsonl + .embeddings.f16 (25)<br/>physics.jsonl + .embeddings.f16 (20)<br/>english.jsonl + .embeddings.f16 (20)<br/>manifest.json]
+        M["Models/MiniLM/<br/>config.json<br/>model.safetensors<br/>tokenizer.*"]
+        R["Resources/RAG/<br/>geology.jsonl + .embeddings.f16 — 26 chunks<br/>plants.jsonl + .embeddings.f16 — 25<br/>physics.jsonl + .embeddings.f16 — 20<br/>english.jsonl + .embeddings.f16 — 20<br/>manifest.json"]
     end
     subgraph Runtime["In-Memory (per Ask)"]
         E[MiniLM via swift-embeddings<br/>~87 MB FP16, MLX backend]

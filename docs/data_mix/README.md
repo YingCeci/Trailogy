@@ -1,5 +1,9 @@
 # data_mix — Anti-overtraining SFT corpus for Gemma 4 E2B VLM
 
+## TLDR
+
+Index for the `data_mix` docs: the diversity lever of the anti-forgetting stack for Gemma 4 E2B VLM SFT. Points to the v4 camera-state prefix design (`01`), per-bucket contracts (`02`), the build orchestrator (`03`), the current production 50K mix (`B`), and historical v1/v3 notes (`A`, `C`). Suggested reading order: 01 → 02 → 03 → B. 96/96 tests green, no network needed.
+
 Engineering notes for the mixed-source SFT corpus. Companion to the
 code in `src/data_mix/`. The goal: break PlantNet's monopoly on the
 LoRA subspace so the fine-tuned Gemma 4 E2B doesn't answer "plant"

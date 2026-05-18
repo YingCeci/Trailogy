@@ -1,5 +1,9 @@
 # Route B.2 — MLX-native quant: algorithm-improvement program
 
+## TLDR
+
+Research spec for improving MLX-native Gemma 4 quantization without CUDA. Two parallel tracks: port production-grade GPTQ stability and recovery tricks into MLX's GPTQ path, and sweep `mlx_vlm.convert --q-mode` (mxfp4/nvfp4/mxfp8) plus `--quant-predicate` mixed recipes. Parallel research track; B.1 still ships first.
+
 > last edit: 2026-05-14
 >
 > Status: parallel research track. **B.2 is NOT the priority
@@ -15,7 +19,7 @@ needs.
 
 Concretely, two parallel sub-efforts:
 
-1. **Algorithm port** from `parameter-golf-dev/trainlib/quantize.py`
+1. **Algorithm port** from a prior GPTQ implementation
    into `mlx_lm/quant/gptq.py` — act-order, dead-column handling,
    Hessian-weighted auto-clip search, LQER low-rank residual
    compensation. (Was §8 in the previous version of this spec; now
@@ -58,10 +62,10 @@ So B.1 ships the deliverable. B.2 (this doc) lives as the long-term
 research track: a working MLX-native PTQ would mean no CUDA dependency
 and no format-bridge step. Worth pursuing, lower priority.
 
-## 3. Algorithm port from `parameter-golf-dev` — the core work
+## 3. Algorithm Port — The Core Work
 
-`parameter-golf-dev/trainlib/quantize.py` (private) implements four
-production-grade GPTQ improvements over Apple's baseline:
+A prior GPTQ implementation provides four production-grade GPTQ
+improvements over Apple's baseline:
 
 | Trick | What it does | Status in `mlx_lm/quant/gptq.py` |
 |---|---|---|
@@ -255,7 +259,7 @@ shows MLX-side GPTQ matches CUDA-side gptqmodel.
 | Methods & eval | `02-methods-and-eval.md` |
 | BNB NF4 vision-collapse case study | `B1-bnb-nf4-vision-collapse.md` |
 | Local-box blockers | `../../TODO_run_local.md` |
-| Algorithm trick source (private) | `parameter-golf-dev/trainlib/quantize.py` |
+| Algorithm trick source | Prior GPTQ implementation notes |
 
 ---
 
