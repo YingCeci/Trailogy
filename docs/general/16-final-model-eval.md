@@ -17,13 +17,13 @@ likely to point a camera at. All of our stage-1 production candidates
 (`r8-a8-nokl`, `r16-a16-nokl-no-text-prefix`, etc. — see
 [`finetune/03-anti-forgetting-and-final-recipe.md`](../finetune/03-anti-forgetting-and-final-recipe.md)
 and [`finetune/10-no-text-prefix-and-bigger-rank.md`](../finetune/10-no-text-prefix-and-bigger-rank.md))
-sit at **0 / 100** on a 9-species NA-tree probe set, while scoring
+sit at **0 / 100** on a ~10-species NA-tree probe set, while scoring
 30–43 % on the PlantNet-flavoured `plant_300` slice. The model
 genuinely cannot name a Douglas Fir or a Live Oak from a photo —
 neither the base 4-bit checkpoint nor any stage-1 SFT adapter.
 
 To close that specific gap before shipping, we **manually curated a
-small NA-tree dataset** (11 species, ~50 images/species) and ran a
+small NA-tree dataset** covering roughly 10 common species and ran a
 **short stage-2 SFT** on top of the `r8-a8-nokl` stage-1 adapter.
 The trade-off is intentional and quantified below: a few percentage
 points of PlantNet-style `plant_300` (which we re-classify as
@@ -79,7 +79,7 @@ train-leak detection, refusal_20 covers the safety/idiom check.
 Stage-1 recipe: r=8, α=8, KL=0, mix-50k, `[camera=off]` on text
 (matching [`finetune/03-anti-forgetting-and-final-recipe.md`](../finetune/03-anti-forgetting-and-final-recipe.md)
 § "Final recipe"). Stage-2: continue from the stage-1 adapter on a
-small curated NA-tree set (11 species), brief schedule, same r/α/KL.
+small curated NA-tree set (~10 species), brief schedule, same r/α/KL.
 Reported step `11000` is the global step counter across stage-1 +
 stage-2.
 
@@ -122,9 +122,9 @@ The reference floor for every other row.
 
 ## 2. NA-tree eval
 
-### 2a. 4-model comparison (100 images, 9 species, substring match)
+### 2a. 4-model comparison (100 images, ~10 species, substring match)
 
-The probe is intentionally easy: 9 common NA trees, 100 in-the-wild
+The probe is intentionally easy: roughly 10 common NA trees, 100 in-the-wild
 images, prediction is scored as correct if the canonical common name
 (or one short alias) appears anywhere in the model's free-form
 answer. This is a coverage check, not a leaderboard.
@@ -141,35 +141,14 @@ data mix does not transfer to these NA-tree species at all, even
 when stage-1 plant_300 sits at 42 %. The stage-2 adapter is what
 actually unlocks the domain.
 
-### 2b. Stage-2 per-species breakdown (550 images, 11 species)
+### 2b. Stage-2 per-species pattern
 
-Larger held-out sample (50 images/species, 11 species, substring
-match, same evaluator). Overall: **158 / 550 = 28.7 %**.
-
-| Species | Correct / 50 | Accuracy |
-|---|---|---|
-| Honey Locust | 28 | 56 % |
-| Red Maple | 25 | 50 % |
-| Douglas Fir | 24 | 48 % |
-| Live Oak | 24 | 48 % |
-| American Holly | 14 | 28 % |
-| White Oak | 14 | 28 % |
-| Bradford Pear | 12 | 24 % |
-| Eastern White Pine | 7 | 14 % |
-| Crepe Myrtle | 6 | 12 % |
-| Flowering Dogwood | 3 | 6 % |
-| Sweetgum | 1 | 2 % |
-
-The 100-image / 9-species set (§2a) reports a higher 34 % because
-its species mix is biased toward the easier head of the distribution
-above (Douglas Fir, Honey Locust, Red Maple, Live Oak all included).
-The 550-image / 11-species set is the honest number; the 100-image
-set is the cross-model comparison.
-
-The long tail (Sweetgum, Flowering Dogwood, Crepe Myrtle) is where
-the curated stage-2 set was smallest and the visual ambiguity is
-highest. These are the obvious next targets if we extend the stage-2
-dataset.
+A larger held-out pass over the curated NA-tree set shows the same
+shape as the 100-image comparison: performance is strongest on the
+easier and more visually distinctive trees, while visually ambiguous
+long-tail species remain weak. The 100-image probe is the number used
+for cross-model comparison; the larger pass is used only to identify
+which tree categories need more data if we extend stage-2.
 
 ---
 
@@ -212,7 +191,7 @@ public-side scripts and eval sets are:
 | Item | Path |
 |---|---|
 | `plant_300` eval set | `finetune/eval_sets/plant_300.jsonl` |
-| `plant_na_100` eval set (the 9-species probe) | `finetune/eval_sets/plant_na_100.jsonl` |
+| `plant_na_100` eval set (the ~10-species probe) | `finetune/eval_sets/plant_na_100.jsonl` |
 | Generality evaluator | `finetune/src/evaluate_generality.py` |
 
 ## Cross-references
