@@ -249,9 +249,9 @@ The updated one-line framing:
 
 ### Note on earlier results
 
-The 2026-05-11 version of this document reported species_match 0/200
-for both LoRA-only and projector + LoRA modes. Those zero-match
-results were caused by a **PEFT orphan-tensor bug**: an older
+Earlier zero-match results reported species_match 0/200 for both
+LoRA-only and projector + LoRA modes. Those results were caused by a
+**PEFT orphan-tensor bug**: an older
 `transformers` version had `k_proj`/`v_proj` as `nn.Linear` across
 all 35 layers; on reload, PEFT silently dropped the 80 orphan tensors.
 The fix was to update `unsloth`, then update `transformers`, `peft`,

@@ -461,9 +461,9 @@ hybrid tests green.
 
 ### 7.2 Re-evaluating the "tied-weights gotcha"
 
-The 2026-05-15 morning writeup of this doc claimed `embed_tokens` could
-not be quantized because it's tied to `lm_head` via
-`_tied_weights_keys`. The actual symptom that motivated the claim —
+An earlier hypothesis claimed `embed_tokens` could not be quantized
+because it's tied to `lm_head` via `_tied_weights_keys`. The actual
+symptom that motivated the claim —
 "multilingual gibberish" — is the **same `embed_scale` bug** applied
 to `embed_tokens` (`embed_scale ≈ 39.19`). At 1/39 amplitude, the very
 first lookup that produces `inputs_embeds` is wrong by ~16× more than
