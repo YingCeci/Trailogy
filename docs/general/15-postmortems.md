@@ -2,10 +2,10 @@
 
 ## TL;DR
 
-- Each postmortem records the symptom, root cause, fix, and tripwire for a bug found during the sprint.
-- The headline failure was an adapter that appeared trained in memory but lost many LoRA tensors after save and reload.
-- Several bugs were caused by silent mismatches between training, evaluation, package versions, and runtime loaders.
-- The lasting lesson is to add automated tripwires for tensor inventories, train/eval parity, and configuration drift.
+- This is the follow-up doc for the writeup's "Silent PEFT loading failure" challenge: training looked successful, but the saved adapter reloaded as a partial adapter and PlantNet eval stayed at base-model behavior.
+- The root cause was a Gemma 4 model-layout mismatch across `transformers` versions; PEFT silently dropped LoRA tensors that no longer matched modules in the newer layout.
+- The same pattern appeared elsewhere: loaders, eval paths, package versions, and runtime backends accepted plausible inputs while silently measuring or running the wrong thing.
+- The fix is not just "upgrade packages"; it is to add tripwires for save/reload tensor inventories, train/eval parity, adapter application, generation settings, and backend/runtime compatibility.
 
 ## Why This Doc Exists
 

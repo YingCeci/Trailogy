@@ -2,10 +2,10 @@
 
 ## TL;DR
 
-- This document records the package versions that were exercised end-to-end for supervised fine-tuning and quantization.
-- Package upgrades are risky because several upstream libraries had silent or version-specific failures in this stack.
-- The most important bug was an adapter reload mismatch that silently dropped trained LoRA tensors after a model-layout change.
-- Other notes cover quantization dispatch issues, MLX backend problems, and the upgrade order needed to avoid known traps.
+- This is the version-side companion to the writeup's "Silent PEFT loading failure": the adapter was trained under one Gemma 4 module layout, then reloaded under another, so PEFT silently dropped trained LoRA tensors.
+- The working supervised fine-tuning stack is the tested combination below, centered on `transformers >= 5.8` plus a retrained adapter; old adapters from the `transformers 5.5` layout are not trustworthy.
+- Package changes in this stack are high risk because multiple libraries failed silently or only on specific backends: PEFT adapter reloads, `modules_to_save`, MLX model trees, quantization kernels, and YAML config plumbing.
+- Treat the table and upgrade order as a reproducibility contract: upgrade in dependency order, re-apply required patches, and run the save/reload smoke test before trusting a real fine-tune or eval.
 
 ## Tested package combination
 
