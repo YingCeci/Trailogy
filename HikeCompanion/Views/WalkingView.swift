@@ -820,7 +820,7 @@ struct WalkingView: View {
             Button {
                 router.endTour()  // routes to .journal; onDisappear cleans up
             } label: {
-                Text("Open journal")
+                Text("Recap")
                     .font(AppFont.sans(15, .semibold))
                     .foregroundStyle(AppColor.limeText)
                     .padding(.horizontal, 28)

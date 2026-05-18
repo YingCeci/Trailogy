@@ -408,6 +408,122 @@ final class GemmaService: ObservableObject {
         }
     }
 
+    // MARK: - Recap generation
+
+    /// Generate a personalized post-tour recap from the model.
+    /// Produces 3–5 "discovery cards" summarising the walk — pulls
+    /// from the trail's curator-authored stop sentences (always
+    /// present) and the user's conversation history (whatever they
+    /// asked during the tour, may be empty). One-shot, doesn't
+    /// stream, doesn't mutate `conversationHistory` — recap is a
+    /// pure read of the tour so far.
+    ///
+    /// Output format is JSON parsed into `[GeneratedCard]` — the
+    /// caller maps each to a `Learning`. If anything fails (model
+    /// not loaded, generation timeout, malformed JSON), throws and
+    /// the caller falls back to the trail's hardcoded learnings.
+    ///
+    /// Latency budget: ~30–60 s on iPhone 15 Pro for 4 cards at
+    /// ~100 tokens each + ~500 tokens of input context. Inside
+    /// Gemma's 1024 KV window with plenty of headroom.
+    struct GeneratedCard: Decodable {
+        let headline: String
+        let body: String
+        let category: String
+    }
+
+    func generateRecap(for trail: Trail) async throws -> [GeneratedCard] {
+        try await loadIfNeeded(.text)
+        guard let container = modelContainer else { throw GemmaError.modelMissing }
+
+        let recapInstructions = """
+        You are summarising a hike for a post-tour recap card grid. Output \
+        ONLY a JSON array of exactly 4 objects, no preamble, no commentary, \
+        no markdown fences. Each object has these three string fields:
+          "headline" — short hero sentence (1 short sentence, max ~10 words)
+          "body"     — 1-2 sentences expanding the headline
+          "category" — exactly one of: geology, water, plant, wildlife, \
+        history, architecture, sky, chemistry, other
+
+        Make each card concrete and grounded in the trail content below. \
+        Vary categories where the content allows. If the user asked you \
+        questions during the tour, fold those discoveries in where they \
+        belong. Do not invent species or numbers not present in the source.
+        """
+
+        let userPrompt = buildRecapUserPrompt(for: trail)
+
+        let session = ChatSession(
+            container,
+            instructions: recapInstructions,
+            history: [],  // one-shot, fresh — don't leak conversation
+            generateParameters: generationParameters
+        )
+
+        MemoryStats.log("gemma.recap start")
+        var fullText = ""
+        for try await chunk in session.streamResponse(
+            to: userPrompt,
+            images: [],
+            videos: []
+        ) {
+            fullText += chunk
+        }
+        MemoryStats.log("gemma.recap done (\(fullText.count) chars)")
+
+        // Find the first '[' and last ']' — tolerates a model that
+        // accidentally wraps output in prose or markdown.
+        guard let start = fullText.firstIndex(of: "["),
+              let end = fullText.lastIndex(of: "]") else {
+            print("[Gemma] recap: no JSON array in output: \(fullText.prefix(200))")
+            throw GemmaError.recapParseFailed
+        }
+        let jsonText = String(fullText[start...end])
+        guard let data = jsonText.data(using: .utf8) else {
+            throw GemmaError.recapParseFailed
+        }
+        do {
+            let cards = try JSONDecoder().decode([GeneratedCard].self, from: data)
+            print("[Gemma] recap: parsed \(cards.count) cards")
+            return cards
+        } catch {
+            print("[Gemma] recap: JSON decode failed — \(error.localizedDescription)")
+            throw GemmaError.recapParseFailed
+        }
+    }
+
+    /// Build the user-side prompt for `generateRecap`. Bundles trail
+    /// metadata + stop narrations + recent user Q&A so the model has
+    /// what it needs to write something specific to this tour rather
+    /// than a generic outdoor summary.
+    private func buildRecapUserPrompt(for trail: Trail) -> String {
+        var parts: [String] = []
+        parts.append("Trail: \(trail.name) at \(trail.parkLocation).")
+        parts.append("Length: \(trail.distanceMiles) miles, \(trail.stops.count) stops.")
+        parts.append("Trail intro: \(trail.intro)")
+
+        parts.append("\nStops and what was narrated at each:")
+        for stop in trail.stops {
+            let body = stop.sentences.joined(separator: " ")
+            parts.append("• Stop \(stop.number) — \(stop.name): \(body)")
+        }
+
+        // Include up to the last 6 turns of user Q&A (3 exchanges).
+        // Larger windows risk crowding the model's KV budget; smaller
+        // misses what the user actually wanted to know.
+        let recentTurns = Array(conversationHistory.suffix(6))
+        if !recentTurns.isEmpty {
+            parts.append("\nQuestions the user asked during the tour and your answers:")
+            for msg in recentTurns {
+                let role = msg.role == .user ? "Q" : "A"
+                parts.append("\(role): \(msg.content)")
+            }
+        }
+
+        parts.append("\nReturn 4 JSON cards now.")
+        return parts.joined(separator: "\n")
+    }
+
     // MARK: - UIImage → CIImage helper
 
     /// Convert a `UIImage` into a `CIImage` suitable for
@@ -425,11 +541,14 @@ final class GemmaService: ObservableObject {
 
 enum GemmaError: LocalizedError {
     case modelMissing
+    case recapParseFailed
 
     var errorDescription: String? {
         switch self {
         case .modelMissing:
             return "Gemma model missing — run scripts/fetch-gemma.sh, then bash scripts/generate-project.sh, then rebuild."
+        case .recapParseFailed:
+            return "Recap generation returned malformed JSON — falling back to curator content."
         }
     }
 }

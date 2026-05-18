@@ -39,8 +39,30 @@ import SwiftUI
 
 struct JournalView: View {
     @EnvironmentObject var router: AppRouter
+    @EnvironmentObject var gemma: GemmaService
 
     var trail: Trail { router.currentTrail }
+
+    /// Gemma-generated takeaway cards for this tour. nil = either
+    /// generation hasn't started, is in flight, or failed (see
+    /// `recapPhase` for which). When set, supplants `trail.learnings`
+    /// in the discoveries stream. Always 4 cards on success.
+    @State private var generatedLearnings: [Learning]? = nil
+
+    /// What state the dynamic-recap generation is in. Drives whether
+    /// we show skeleton cards, the generated set, or the curator
+    /// fallback. Computed transitions:
+    ///   .pending      → on view appear, before generation kicks off
+    ///   .generating   → Gemma is running; show skeletons
+    ///   .ready        → generation succeeded; show `generatedLearnings`
+    ///   .fallback     → generation failed; show `trail.learnings`
+    private enum RecapPhase: Equatable { case pending, generating, ready, fallback }
+    @State private var recapPhase: RecapPhase = .pending
+
+    /// Single-shot guard — `.task` re-fires on view re-entry but we
+    /// only want one generation pass per appear. Once it's run we
+    /// hold the result for the lifetime of this view instance.
+    @State private var didKickOffGeneration: Bool = false
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -88,6 +110,43 @@ struct JournalView: View {
                 // down ~131 pt.
                 .ignoresSafeArea(edges: .top)
         }
+        .task { await kickOffRecapGeneration() }
+    }
+
+    /// Trigger Gemma's recap generation on first appear. Idempotent —
+    /// guarded by `didKickOffGeneration` so navigating away and back
+    /// doesn't re-spin Gemma. If generation succeeds, the cards swap
+    /// in; if it fails (parse error, timeout, model not loaded), we
+    /// silently fall back to the curator-authored `trail.learnings`.
+    private func kickOffRecapGeneration() async {
+        if didKickOffGeneration { return }
+        didKickOffGeneration = true
+        recapPhase = .generating
+        print("[Recap] kickoff for \(trail.name)")
+        do {
+            let cards = try await gemma.generateRecap(for: trail)
+            let learnings: [Learning] = cards.map { card in
+                Learning(
+                    anchor: card.headline,
+                    body: card.body,
+                    category: LearningCategory(rawValue: card.category) ?? .other
+                )
+            }
+            generatedLearnings = learnings
+            recapPhase = .ready
+            print("[Recap] ready · \(learnings.count) generated cards")
+        } catch {
+            generatedLearnings = nil
+            recapPhase = .fallback
+            print("[Recap] fallback → curator content · \(error.localizedDescription)")
+        }
+    }
+
+    /// The cards to render right now — either Gemma's output, the
+    /// curator fallback, or nothing (caller renders skeletons
+    /// instead) while we're still generating.
+    private var learningsToShow: [Learning] {
+        generatedLearnings ?? trail.learnings
     }
 
     // MARK: - Recap header (centered stack: trailmark + name + meta)
@@ -172,21 +231,87 @@ struct JournalView: View {
 
     // MARK: - Takeaways section header
 
-    /// Centered uppercase tracked "TAKEAWAYS" label, lime. Replaces
-    /// the earlier giant "5 · Discoveries today" hero count — quieter
-    /// section marker that doesn't compete with the trailmark above
-    /// or the card headlines below.
+    /// Section header — adapts to the recap-generation phase so the
+    /// user knows what they're looking at:
+    ///   • generating → "Writing your recap…" (signals the wait)
+    ///   • ready      → "Your takeaways"   (Gemma-generated, personalised)
+    ///   • fallback / pending → "Takeaways" (curator content)
+    /// Centered uppercase tracked label, lime, mockup-faithful style.
     private var takeawaysEyebrow: some View {
-        Text("Takeaways")
+        Text(takeawaysLabel)
             .eyebrowStyle(AppColor.lime)
+    }
+
+    private var takeawaysLabel: String {
+        switch recapPhase {
+        case .generating: return "Writing your recap…"
+        case .ready:      return "Your takeaways"
+        case .pending, .fallback: return "Takeaways"
+        }
     }
 
     // MARK: - Discoveries stream (the learning cards)
 
+    /// Three render modes for the stream:
+    ///   • generating → 4 shimmer skeleton cards while Gemma writes
+    ///   • ready      → Gemma's `generatedLearnings`
+    ///   • fallback / pending → curator `trail.learnings` as backup
+    @ViewBuilder
     private var discoveriesStream: some View {
         VStack(spacing: 14) {
-            ForEach(trail.learnings) { learning in
-                learningCard(learning)
+            if recapPhase == .generating && generatedLearnings == nil {
+                ForEach(0..<4, id: \.self) { _ in
+                    skeletonCard
+                }
+            } else {
+                ForEach(learningsToShow) { learning in
+                    learningCard(learning)
+                }
+            }
+        }
+    }
+
+    /// Pulsing placeholder card used while Gemma generates. Same
+    /// height + corner radius as a real learning card so the layout
+    /// doesn't jump when the real cards swap in. Two grey bars
+    /// stand in for the headline + body; opacity oscillates 0.3 → 0.6.
+    @State private var skeletonPulse: Bool = false
+    private var skeletonCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(AppColor.ink100.opacity(skeletonPulse ? 0.18 : 0.08))
+                .frame(height: 18)
+                .padding(.trailing, 80)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(AppColor.ink100.opacity(skeletonPulse ? 0.12 : 0.05))
+                .frame(height: 12)
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(AppColor.ink100.opacity(skeletonPulse ? 0.12 : 0.05))
+                .frame(height: 12)
+                .padding(.trailing, 60)
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 28)
+        .padding(.bottom, 26)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    AppColor.ink100.opacity(0.045),
+                    AppColor.ink100.opacity(0.015),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppColor.ink100.opacity(0.12), lineWidth: 1)
+        )
+        .onAppear {
+            withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                skeletonPulse = true
             }
         }
     }
@@ -289,4 +414,8 @@ struct JournalView: View {
             r.walkedAt[TrailData.kildoo.id] = Date()
             return r
         }())
+        // GemmaService for the preview — won't actually load (no
+        // model files in preview sandbox), so JournalView falls
+        // through to the curator content gracefully.
+        .environmentObject(GemmaService())
 }
