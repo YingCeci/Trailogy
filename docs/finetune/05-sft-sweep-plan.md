@@ -7,7 +7,6 @@
 - The target was to beat the baseline-1 PlantNet score of 70.6% by a few percentage points while keeping the experiment interpretable.
 - Early Stage 1 results found strong candidates after correcting an evaluation-reference mistake, with two variants improving the quick eval by more than 12 percentage points.
 
-> last edit: 2026-05-16
 > Strategic + execution plan for the pre-deadline SFT push.
 > Companion to:
 > - `01-pipeline.md` — baseline LoRA-only pipeline
@@ -58,30 +57,6 @@ based on the wrong reference and is **withdrawn**. baseline7 still
 queued. Full breakdown: §"Stage 1 results (2026-05-16 update)" below;
 the diagnosis of the n=200-vs-n=300 reference mistake is in
 §"baseline-1 reference re-aligned" inside that section.
-
-> ⚠ **Caveat — stale val.jsonl on disk.** All four numbers in the table
-> above were measured on the **current 5,000-row / 605-species
-> val.jsonl**. That file under-represents the long tail (177 / 782
-> species end up in train only, not val) because it was generated
-> before the `class_stratified_split` fix landed. Status of the fix:
->
-> - ✅ **Code fix already landed in `@6e49ec2`** ("fix(prepare):
->   per-species stratified train/val split"). `class_stratified_split`
->   is wired into both `prepare_plantnet.py` and
->   `prepare_plantnet_enriched.py`; the old `samples[:val_count]` slice
->   is gone.
-> - ❌ **`val.jsonl` on disk has NOT been regenerated yet.** mtime
->   2026-05-15, predates the fix. `wc -l val.jsonl` → 5000, species
->   count 605 — those numbers will change to ~5000+ rows / 782 species
->   after a `bash src/finetune/scripts/run/prepare_plantnet_50k.sh`
->   on this checkout.
->
-> Once val.jsonl is regenerated, baseline-1 / baseline-4 / baseline-5 /
-> baseline-6 should all be re-eval'd on the new val. **Relative
-> ordering (Δ between Stage 1 configs) should survive** since all four
-> eval on the same stale val today; absolute numbers will shift. Stage 2
-> launch is gated on val.jsonl regeneration + the n=300 re-eval pass —
-> running Stage 2 on a known-stale val would compound the problem.
 
 ## Why this shape
 
@@ -293,13 +268,6 @@ number is taken from
 > selects via `test_data[: args.max_eval_samples]` (head-of-file slice),
 > not `random.Random(0).sample(records, N)`**, so n=200 is a strict
 > prefix of n=300 — but the file itself has changed.
->
-> The original 72.0 % was measured against the **stale 4090 val.jsonl
-> from before the canonical `prepare_plantnet_50k.sh` flow landed**.
-> That stale val.jsonl pointed at raw `PlantNet-300K-data-v2/test/`
-> images and was head-of-tail-biased like `test.jsonl` is today. The
-> current canonical val.jsonl is in-distribution-from-`train/` and
-> covers 605/782 species uniformly; it is structurally a harder eval.
 >
 > Re-eval'ing the SAME baseline-1 checkpoint at n=300 on the **current
 > canonical val.jsonl** gives **58.00 %** (174/300, ROUGE-L 0.6435,

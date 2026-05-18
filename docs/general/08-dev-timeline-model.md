@@ -44,7 +44,7 @@ timeline
         Phase γ : Purge QLoRA, default bf16, 4bit-in-trainable tripwire
                 : auto-eval after training, dual-A100 runner
     section May 12
-        Phase δ : adamw_torch_fused + reject 8-bit optim
+        Phase δ : training config validation + augmentation
                 : Online data augmentation
                 : Overfit→memorization debug → root cause found
                 : (see 15-postmortems.md §1)
@@ -114,7 +114,6 @@ post-save. Fixed by upgrading and retraining. In-pipeline tripwires
 landed (`4fab396`) to catch the bug class.
 
 Other same-day fixes:
-- `adamw_8bit` policy violation → `adamw_torch_fused` + config validator.
 - `warmup_ratio`, `group_by_length`, `tf32`, `save_total_limit`
   modernized for `transformers 5.x`.
 - 8 eval/train parity bugs (chat template, model class, max_new_tokens

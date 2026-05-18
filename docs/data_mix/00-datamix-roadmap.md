@@ -7,8 +7,6 @@
 - The final prompt design uses `[camera=on]` and `[camera=off]` to tell the model whether an image is present during both training and app use.
 - This document tracks how the mix changed from an early 20K version to the current 50K/100K production setup.
 
-> last edit: 2026-05-16
-
 Strategic overview for the anti-overtraining mixed SFT corpus.
 Companion to the code in `src/data_mix/`. **Read this first.**
 

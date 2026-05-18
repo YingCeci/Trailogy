@@ -16,8 +16,8 @@ species in answers to "what is the capital of France?"). The mix
 buckets help but don't fully constrain the LoRA delta — even on generic
 inputs the trained model's output distribution drifts.
 
-A DeepMind colleague (private comm, 2026-05-15) suggested two
-complementary regularizers — and we added a third independent gate:
+The anti-forgetting design uses two complementary regularizers plus a
+third independent gate:
 
 1. **KL penalty** against the base model's outputs (RLHF-style anti-drift
    applied at SFT time).
@@ -29,9 +29,7 @@ complementary regularizers — and we added a third independent gate:
    `[camera=on]` or `[camera=off]` to every training prompt, picked
    per record by image presence. The marker gives the model an
    explicit modality-state signal at the prompt level rather than
-   forcing it to infer state from the rest of the input
-   distribution. (Original task-tag idea suggested by the same
-   colleague, 2026-05-16.)
+   forcing it to infer state from the rest of the input distribution.
 
 None of these eliminate the catastrophic-forgetting risk on their own;
 together they cover three different attack surfaces:

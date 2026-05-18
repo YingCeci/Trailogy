@@ -8,8 +8,6 @@
 - EoRA does not recover quality on this checkpoint, so readers should not generalize the successful M8b result without checking the source SFT quality.
 - The doc also records the M8b merge bug and fix: use the dict-level safetensors merge, not an inline model round-trip that rewrites unrelated tensors.
 
-> last edit: 2026-05-18 (morning — M8b-merge bug fixed, plant_100 eval set)
->
 > MLX quantization sweep on the **r8-a8-nokl-step13000** SFT.
 >
 > **Headline (2026-05-18 morning)**: switched primary eval from

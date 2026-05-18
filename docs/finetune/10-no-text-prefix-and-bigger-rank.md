@@ -7,8 +7,6 @@
 - Increasing to rank 16 with alpha/r kept at 1.0 produced the best recorded composite score in this note: 0.415 at step 20000.
 - The current takeaway is to prefer `r16-a16-nokl-no-text-prefix` as the new production candidate, while treating the alternate `mixc` data variant as a negative result.
 
-> last edit: 2026-05-18 evening (MacBook M5 Pro eval patch)
-
 > **Status (2026-05-18, noon)**: 在 H200 上跑了两组新的对照
 > 实验,把先前 docs/09 里"r=8, α=8, KL=0, ~4647 step"的 SOTA
 > 推翻。新的 production candidate 是

@@ -7,10 +7,6 @@
 - The CUDA/HF hybrid route still matters as an independent reference: it reaches 3.41 GB and 83.7 %, validating the same size-quality region with different tooling.
 - Use this doc to decide which route to work on; use the route-specific result files for exact commands, variants, and caveats.
 
-> last edit: 2026-05-18 (B.1 hybrid PyTorch route landed at 3.41 GB /
-> 83.7 %; B.2 + EoRA closes gap to 88.0 % at 3.6 GB; MLX bridge no
-> longer the only path to a sub-4 GB deliverable. iOS deploy artifact
-> remains a B.2 MLX export — only format `mlx-swift-lm` consumes.)
 > Strategic-decision doc. Read after `README.md` and before any
 > route-specific spec.
 
@@ -143,10 +139,8 @@ Key empirical readings that constrain A.2's expected upside:
 Policy gate: fake-quant fwd + bf16 grads is technically not
 "4-bit training" under AGENTS.md rule [0] because no 4-bit weights
 or 4-bit optimizer state ever exist. A.2 still needs an explicit
-ruling on this before any code lands. The qwen3 reference notebook
-uses `adamw_8bit`, which **does** violate rule [0] — any A.2
-implementation must lock the optimizer to `adamw_torch` /
-`adamw_torch_fused`.
+ruling on this before any code lands, and any implementation must keep
+full-precision optimizer state.
 
 ## Route B.1 — bf16 SFT → GPTQModel → (torchao hybrid | MLX bridge)
 

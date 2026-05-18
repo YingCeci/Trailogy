@@ -1,5 +1,3 @@
-> last edit: 2026-05-15 (path fix, 2026-05-15 prior revision under §"When vision-tower tuning should become valuable")
-
 # Finetune Pipeline — Projector + LoRA + Vision-Tower Last-N Mode
 
 ## TL;DR
@@ -99,7 +97,7 @@ unchanged. Audio stays frozen.
 
                                   ▼
 5. Three-group optimizer                              finetune.py
-   AdamW8bit([
+   AdamW([
        {"params": lora_params,    "lr": training.learning_rate},      # 2e-4
        {"params": proj_params,    "lr": projector_learning_rate},     # 5e-5 (LR/10 auto)
        {"params": vision_params,  "lr": vision_layers_learning_rate}, # 1e-5 (LR/20 auto)

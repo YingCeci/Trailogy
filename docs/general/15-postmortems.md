@@ -14,7 +14,22 @@ that completed, wrote metrics, and looked plausible while measuring the wrong
 thing. This document keeps only the reviewer-relevant parts: symptom, cause,
 fix, and prevention.
 
-## 1. Silent PEFT Loading Failure
+## 1. Cross-Backend Evaluation Drift
+
+**Symptom.** The same quantized artifact scored very differently across Mac MLX
+and Linux/CUDA MLX runs.
+
+**Root cause.** Backend wheels and kernels did not have identical bug-fix
+coverage. Quantized matmul behavior differed enough to corrupt generation under
+some inputs.
+
+**Fix.** Use the authoritative deployment backend for reporting and use other
+backends only for within-backend comparisons unless parity has been verified.
+
+**Tripwire.** Evaluate a known-good artifact on every backend before trusting a
+new sweep on that backend.
+
+## 2. Silent PEFT Loading Failure
 
 **Symptom.** Training appeared successful: in-memory loss was near zero on
 small overfit sets. After saving and reloading the adapter, PlantNet evaluation
@@ -36,7 +51,7 @@ save/reload tripwires that compare in-memory PEFT state with the saved
 **Tripwire.** Training fails if a saved adapter reload would lose tensors or if
 tensor values differ unexpectedly.
 
-## 2. Quantizing Through The Wrong MLX Model Tree
+## 3. Quantizing Through The Wrong MLX Model Tree
 
 **Symptom.** Several MLX quantization methods produced NaNs, `<pad>` spam, or
 artifacts that could not load through the iOS-compatible VLM path.
@@ -53,37 +68,7 @@ core only to the compatible subtree.
 **Tripwire.** Deploy artifacts must load through the VLM path and preserve
 vision weights. See [`../quantization/05-mlx-vlm-design.md`](../quantization/05-mlx-vlm-design.md).
 
-## 3. Cross-Backend Evaluation Drift
-
-**Symptom.** The same quantized artifact scored very differently across Mac MLX
-and Linux/CUDA MLX runs.
-
-**Root cause.** Backend wheels and kernels did not have identical bug-fix
-coverage. Quantized matmul behavior differed enough to corrupt generation under
-some inputs.
-
-**Fix.** Use the authoritative deployment backend for reporting and use other
-backends only for within-backend comparisons unless parity has been verified.
-
-**Tripwire.** Evaluate a known-good artifact on every backend before trusting a
-new sweep on that backend.
-
-## 4. Train/Eval Data Mismatch
-
-**Symptom.** The same model produced large metric swings depending on which
-PlantNet JSONL was used.
-
-**Root cause.** Multiple issues stacked together: stale validation files,
-filesystem-dependent image ordering, and structurally different `val` versus
-`test` distributions.
-
-**Fix.** Use the canonical prep wrapper, sort filesystem iteration, and make
-result tables explicit about which eval file they use.
-
-**Tripwire.** Eval manifests include row counts, species counts, split names,
-and deterministic sampling information.
-
-## 5. Eval Pipeline Ignored The Adapter
+## 4. Eval Pipeline Ignored The Adapter
 
 **Symptom.** Multiple sweep results matched the base model fingerprint even
 though they claimed to evaluate different adapters.
@@ -97,7 +82,7 @@ not leave `lora_*` parameters behind.
 **Tripwire.** Refuse to publish sweep summaries if all fresh evals match the
 base model fingerprint.
 
-## 6. Non-Deterministic Eval Generation
+## 5. Non-Deterministic Eval Generation
 
 **Symptom.** Repeated evals of the same checkpoint produced avoidable jitter.
 
@@ -109,18 +94,6 @@ backend allows it.
 
 **Tripwire.** Eval code sets generation arguments directly rather than relying
 on model config defaults.
-
-## 7. Absolute Paths In Shared Eval Data
-
-**Symptom.** Shared eval JSONL files contained machine-specific image paths.
-
-**Root cause.** The eval file encoded local storage layout instead of portable
-relative paths.
-
-**Fix.** Store relative image paths and resolve them against an explicit
-`--plant_image_root` / `PLANT_IMAGE_ROOT` value.
-
-**Tripwire.** Missing images raise immediately; silent skips are forbidden.
 
 ## Common Pattern
 

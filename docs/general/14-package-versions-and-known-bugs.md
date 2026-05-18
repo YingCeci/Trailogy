@@ -250,22 +250,7 @@ The source build only **partially** fixes pad-spam (~48 % of
 responses still pad-spam stochastically across runs), but aggregate
 accuracy is tight (±0.33 pp on n=300).
 
-### 7. `unsloth` `adamw_8bit` default bleeds into bf16 SFT runs
-
-**Symptom**: project policy [0] (no 8-bit / 4-bit outside explicit
-QLoRA runs) silently violated; reported losses look correct but
-optimizer-state numerics are 8-bit.
-
-**Mechanism**: unsloth's `FastModel` setup defaults the optimizer
-name to `adamw_8bit`. The `finetune.py` dispatcher used to honor a
-hardcoded 8-bit optim for projector/vision param groups even when YAML
-specified `adamw_torch`.
-
-**Fix**: `6ee0112` switches all configs to `adamw_torch_fused` and adds
-a config validator that **rejects** any `*8bit*` / `*4bit*` / `paged_*`
-optim name string at config-load time.
-
-### 8. PEFT silently drops `modules_to_save` registrations under wrapper-depth mismatches
+### 7. PEFT silently drops `modules_to_save` registrations under wrapper-depth mismatches
 
 **Symptom**: a config that requests `tune_projector: true` or
 `tune_last_n_vision_layers: N` saves an adapter where the projector
@@ -290,7 +275,7 @@ PEFT's expectations, the registration is dropped — silently.
   byte-for-byte. Identical = PEFT silently failed to restore
   `modules_to_save` weights → ship-stopper.
 
-### 9. YAML config knobs that look loaded but aren't
+### 8. YAML config knobs that look loaded but aren't
 
 **Symptom**: an ablation between `desc_act: true` and `desc_act: false`
 shows ~0.5-1.0 pp delta — but the delta is actually a calibration-set
@@ -326,33 +311,6 @@ in alphabetical order:
    forward-pass logits Δ = 0), the orphan-tensor bug class is not
    reintroduced and a real finetune is safe.
 5. Update the version table at the top of this doc.
-
-## CUDA device-order gotcha
-
-On a multi-GPU host, `nvidia-smi` and PyTorch can enumerate GPUs in
-**different order**. PyTorch defaults to `FASTEST_FIRST` (or PCI
-topology); `nvidia-smi` uses PCI bus ID. Example:
-
-| nvidia-smi index | PyTorch index | Device |
-|---|---|---|
-| 0 | 1 | GTX 1650 Max-Q (4 GB) |
-| 1 | 0 | RTX 4090 (24 GB) |
-
-To isolate the 4090 reliably:
-
-```bash
-export CUDA_DEVICE_ORDER=PCI_BUS_ID
-export CUDA_VISIBLE_DEVICES=1    # PCI_BUS_ID ordering → 4090
-```
-
-Or with default `FASTEST_FIRST`:
-
-```bash
-export CUDA_VISIBLE_DEVICES=0    # FASTEST_FIRST → 4090
-```
-
-Mismatch is a common source of "training silently runs on the wrong
-GPU" surprises on hosts with mixed-tier hardware.
 
 ## How to reproduce the snapshot
 

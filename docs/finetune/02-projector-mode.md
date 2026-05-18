@@ -1,5 +1,3 @@
-> last edit: 2026-05-15 (path fix, cross-refs to 05/06, production baseline-1 framing)
-
 # Finetune Pipeline — Projector + LoRA Mode
 
 ## TL;DR

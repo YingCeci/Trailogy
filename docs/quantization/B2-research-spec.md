@@ -7,8 +7,6 @@
 - The other track sweeps MLX conversion modes and mixed-precision predicates to map the data-free tradeoff curve.
 - This is a research track, so readers should treat it as future improvement work rather than the current deployment recipe.
 
-> last edit: 2026-05-14
->
 > Status: parallel research track. **B.2 is NOT the priority
 > deliverable this round** — that's B.1 (HF GPTQModel → MLX bridge).
 > See `00-quantization-roadmap.md` for the route picker.

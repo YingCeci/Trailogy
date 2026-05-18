@@ -1,5 +1,3 @@
-> last edit: 2026-05-16 (metrics logging — `metrics.jsonl` + opt-in wandb)
-
 # Finetune Pipeline — Baseline (LoRA-only) Mode
 
 ## TL;DR

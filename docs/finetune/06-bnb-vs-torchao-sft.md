@@ -236,8 +236,8 @@ literature alone.
   under `language_model.layers.*`. Explicitly exclude
   `vision_tower.*`, `embed_vision`, `audio_tower.*`, `embed_audio`,
   `lm_head`, `embed_tokens`.
-- **Optimizer**: `adamw_torch` or `adamw_torch_fused`. **Forbidden**:
-  `adamw_8bit`, `paged_adamw_8bit`, `bnb_*` — see project policy.
+- **Optimizer**: `adamw_torch` or `adamw_torch_fused`. Quantized
+  optimizers are outside this recipe.
 - **Training**: 500-1,000 steps QAT-aware cooldown on PlantNet-50k
   subset, LR 5e-5, batch 16, grad-accum 1, single epoch fraction.
 - **Convert**: `quantize_(model, QATConfig(step="convert"))` →
