@@ -1,4 +1,4 @@
-# CLAUDE.md — hikeCompanion
+# CLAUDE.md — Trailogy
 
 Context checkpoint for future Claude sessions. Read this first.
 
@@ -30,9 +30,13 @@ the wrong-kind model and loads the right one before streaming.
 
 ## Repo
 
-- GitHub: `git@github.com:YingCeci/hikeCompanion.git` (private — under
-  YingCeci, not lijuncheng16, due to the SSH key on this Mac)
-- Local path: ``
+- GitHub: `git@github.com:YingCeci/Trailogy.git` (private — under
+  YingCeci, not lijuncheng16, due to the SSH key on this Mac).
+  Repo was renamed from `hikeCompanion` to `Trailogy` mid-development;
+  Xcode target name keeps the legacy `HikeCompanion` to avoid churning
+  bundle ID + provisioning (user-facing display name is "Trailogy").
+- Local path: `` (local clone
+  directory not renamed; cosmetic only)
 - Owner intent: Billy Li (`lijuncheng16`); collaborator: Ying Wang (`YingCeci`).
   Bundle ID is `com.lijuncheng16.HikeCompanion`.
 
@@ -197,7 +201,7 @@ turns (MLX active = 14 MB).
 ## Project layout
 
 ```
-hikeCompanion/
+Trailogy/
 ├── README.md, CLAUDE.md, AGENTS.md, ARCHITECTURE.md, project.yml, .gitignore
 ├── design/
 │   └── mockups.html               # source of the SwiftUI redesign
@@ -236,10 +240,10 @@ See `ARCHITECTURE.md` for a one-page diagram of the layers + Q&A flow.
 ## Setup commands (cold clone)
 
 ```bash
-git clone --recurse-submodules git@github.com:YingCeci/hikeCompanion.git
+git clone --recurse-submodules git@github.com:YingCeci/Trailogy.git
 # (no actual submodules — `external/` is committed directly — but keeping
 # the recurse flag harmless if we ever switch back)
-cd hikeCompanion
+cd Trailogy
 
 bash scripts/fetch-models.sh           # Kokoro: ~630 MB
 bash scripts/fetch-gemma.sh            # Gemma 4 E2B: ~3.4 GB. Add --backup for unsloth fallback.

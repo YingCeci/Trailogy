@@ -1,4 +1,4 @@
-# hikeCompanion — architecture (one page)
+# Trailogy — architecture (one page)
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
