@@ -36,9 +36,7 @@ B.2 (MLX deploy) live alongside.
 - [`B1-torchao-vs-gptqmodel.md`](B1-torchao-vs-gptqmodel.md): CUDA hybrid tooling decomposition.
 - [`02b-mlx-torch-convert.md`](02b-mlx-torch-convert.md): HF to MLX conversion caveats.
 
-## Historical / Planning
+## Historical / Reference
 
-- [`00-quantization-roadmap.md`](00-quantization-roadmap.md)
 - [`01-baselines.md`](01-baselines.md)
 - [`A-baseline2-qlora-progress.md`](A-baseline2-qlora-progress.md)
-- [`B2-research-spec.md`](B2-research-spec.md)

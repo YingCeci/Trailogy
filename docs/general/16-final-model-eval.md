@@ -48,7 +48,7 @@ The stage-2 adapter at step 11 000 is what ships in the iOS bundle.
 - bf16 base MMLU = 46 %; 4-bit g64 MMLU = 40 % (~6 pp quantization
   cost on this domain — see
   [`11-cuda-vs-mlx-eval-parity.md`](11-cuda-vs-mlx-eval-parity.md)).
-- An H200 CUDA eval of the stage-1 r16 step 20k checkpoint scored
+- A CUDA eval of the stage-1 r16 step 20k checkpoint scored
   composite=0.415 on the same metric (see
   [`finetune/10-no-text-prefix-and-bigger-rank.md`](../finetune/10-no-text-prefix-and-bigger-rank.md)
   §2). The Mac MLX g64 number for the same adapter is 0.400 — within
@@ -91,7 +91,7 @@ NA-tree result: see §2.
 
 ### 1b. r16-a16-nokl-no-text-prefix *(step 20000, stage-1 only)*
 
-r=16, α=16, KL=0, mix-50k, no text-side prefix, 10-epoch H200 run.
+r=16, α=16, KL=0, mix-50k, no text-side prefix, 10-epoch CUDA run.
 Stage-1 SOTA per
 [`finetune/10-no-text-prefix-and-bigger-rank.md`](../finetune/10-no-text-prefix-and-bigger-rank.md).
 
@@ -101,7 +101,7 @@ Stage-1 SOTA per
 
 ### 1c. r8-a8-nokl *(step 13000, stage-1 only)*
 
-The recipe `r=8, α=8, KL=0, mix-50k`, no text prefix, H200 — same
+The recipe `r=8, α=8, KL=0, mix-50k`, no text prefix — same
 shape as 1b at rank 8 instead of 16. This is the **stage-1 parent**
 of the shipped stage-2 model.
 
@@ -176,9 +176,8 @@ Two effects worth calling out:
   the stage-1 plant-domain overfit visible in 1c's MMLU drop (base
   is 40 %, stage-1-only sat below base at 34 %). Stage-2 partially
   un-did that forgetting while introducing the new tree vocabulary.
-  Consistent with the "anti-forgetting comes from data mix, not from
-  regularization terms" finding in
-  [`finetune/09-kl-is-overkill-at-small-rank.md`](../finetune/09-kl-is-overkill-at-small-rank.md).
+  Consistent with the broader finding that anti-forgetting came mostly
+  from the data mix rather than regularization terms.
 
 ---
 

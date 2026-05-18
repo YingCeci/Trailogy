@@ -26,8 +26,7 @@ review:
 - iOS build/dependency mechanics: [`04-xcode-build-and-deps.md`](04-xcode-build-and-deps.md)
 - RAG runtime details: [`05-rag-runtime.md`](05-rag-runtime.md)
 - Background/Metal lifecycle: [`06-scenephase-metal-background.md`](06-scenephase-metal-background.md)
-- Optimization backlog: [`07-optimizations-and-future.md`](07-optimizations-and-future.md)
-- Development timelines: [`08-dev-timeline-model.md`](08-dev-timeline-model.md), [`09-dev-timeline-ios.md`](09-dev-timeline-ios.md)
+- iOS development timeline: [`09-dev-timeline-ios.md`](09-dev-timeline-ios.md)
 - Cross-platform parity audits: [`11-cuda-vs-mlx-eval-parity.md`](11-cuda-vs-mlx-eval-parity.md), [`12-mlx-vlm-vs-hf-kv-sharing.md`](12-mlx-vlm-vs-hf-kv-sharing.md), [`13-mlx-vision-input-parity.md`](13-mlx-vision-input-parity.md)
 - Audio / TTS rationale and streaming: [`17-audio-and-tts.md`](17-audio-and-tts.md)
 

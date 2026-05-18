@@ -5,7 +5,7 @@
 - This doc defines the calibration data used by post-training quantizers such as GPTQ, AWQ, and dynamic quantization.
 - It compares three calibration sources: general text only, mixed general plus PlantNet text, and multimodal image-plus-text examples.
 - The main experiments ask whether multimodal calibration helps, whether domain text beats general text, and whether the setup transfers between MLX and HF routes.
-- The design includes leak guards that reject evaluation and memorization sets, so readers can reuse the calibration plan without contaminating accuracy results.
+- The design includes leak guards that reject evaluation and memorization sets, so readers can reuse the calibration setup without contaminating accuracy results.
 
 ## Scope
 
@@ -233,8 +233,8 @@ Q1/Q2/Q3 remain model-invariant, which is what we care about.
 
 ## Open risks
 
-1. **Multimodal calibration wall time**. SigLIP forward on 256 images
-   at 960×672 is ~50-200 ms/image (un-measured on M5 Pro; rough
+1. **Multimodal calibration runtime**. SigLIP forward on 256 images
+   at 960×672 is ~50-200 ms/image (rough
    estimate). 13-50 s total. Acceptable. If worse, drop multimodal
    count to 128 + WikiText 128, keeping total 256 (and adjust A/B
    accordingly for fairness).

@@ -68,7 +68,7 @@ The "teacher" is just the base model — exactly what
 context manager has three advantages over a second copy:
 
 - **Zero extra GPU memory.** No teacher checkpoint to load — important
-  on a 4090 24G where Gemma 4 E2B + LoRA r=256 + projector +
+  on single-GPU training where Gemma 4 E2B + LoRA r=256 + projector +
   last-2 vision layers already uses ~12 GB at batch_size 16.
 - **Bit-identical base.** No risk of the teacher and student getting
   out of sync due to different load paths, different dtype promotions,
@@ -84,17 +84,18 @@ context manager has three advantages over a second copy:
 ~+1 forward pass per training step. With the model on GPU + activations
 already materialised by the CE forward, the teacher forward reuses the
 KV cache layout but produces detached logits (`torch.no_grad`). Net
-overhead measured on the 4090 smoke test: ~30–40 % wall-clock per step
+overhead measured on the CUDA smoke test: ~30–40 % runtime per step
 (forward is ~half of a step's cost; the teacher forward adds another
 half-forward worth of compute). Acceptable for the v3 plantnet runs.
 
-### Memory: no chunking (2026-05-16 simplification)
+### Memory: optional KL chunking
 
-The implementation **does not chunk** the fp32 KL math along the
-supervised-positions axis. An earlier draft chunked
-``masked_student[start:start+64]`` to bound the per-step fp32
-footprint to ~320 MB, but the analysis underlying ``chunk_size=64``
-was overly conservative:
+The implementation supports chunking the fp32 KL math along the
+supervised-positions axis via `regularization.kl_chunk_size`. With
+`kl_chunk_size: null`, KL runs in one shot for speed. With a positive
+integer, it processes `masked_student[start:start+chunk_size]` slices
+to bound peak fp32 memory. The earlier fixed `chunk_size=64` default
+was overly conservative for the normal SFT batch shape:
 
 - After ``mask = labels != -100``, the KL operates on ``N`` rows
   where ``N`` is the count of supervised tokens in the micro-batch —
@@ -102,19 +103,16 @@ was overly conservative:
 - At Gemma 4 vocab ``V ≈ 262 K``, one fp32 row is ~1 MB.
 - The five concurrent fp32 buffers (``s_fp32``, ``t_fp32``,
   ``s_log``, ``t_log``, ``elementwise``) at a realistic ``N = 600``
-  sum to ~3 GB peak — comfortably inside the 24 GB budget alongside
+  sum to ~3 GB peak — comfortably inside the training memory budget alongside
   bf16 weights, optimizer state, and the teacher's ``[B, T, V]`` bf16
   forward (which we explicitly ``del`` before the fp32 conversions).
-- A ``chunk_size = 64`` default cost ~5–10× extra kernel launches
-  per KL step without a measurable memory benefit at this ``N``.
+- A forced ``chunk_size = 64`` default costs ~5–10× extra kernel
+  launches per KL step without a measurable memory benefit at this
+  ``N``.
 
-Removed in this repo's commit `c652580` (2026-05-16). The
-``__init__`` signature is now ``KLPenalty(temperature=1.0)`` only —
-the previous ``chunk_size`` parameter is gone. If a future config
-pushes ``N`` toward ~2 K supervised tokens (e.g. ``B`` raised on
-larger GPUs or every position supervised), revisit: the naive fp32
-peak scales linearly in ``N`` and would start to hurt around
-``N ≈ 2000``.
+Current behavior is therefore explicit: leave `kl_chunk_size` unset for
+the fast path, or set it when supervised-token count grows enough that
+the one-shot fp32 peak is the limiting memory term.
 
 ### Production-config status (2026-05-16)
 
@@ -122,12 +120,12 @@ The 50k-mix r=256 modality-aware production run trains with KL
 **disabled** (`regularization.kl_enabled: false`) and L2 **disabled**
 (`regularization.l2_enabled: false`). The combined memory pressure
 of LoRA r=256 + projector + last-2 vision layers + teacher forward
-+ L2 snapshot was at the 4090 24 GB margin at the practical batch
++ L2 snapshot was near the single-GPU memory margin at the practical batch
 size we want, and the v3 mix already constrains output drift
-through the data side. The KL + L2 code path is wired and
-unit-tested (22 tests green post-chunking-removal), so re-enabling
+  through the data side. The KL + L2 code path is wired and
+  unit-tested, so re-enabling
 is a one-line config change once we have memory headroom (e.g. a
-lower-rank ablation, or A100-class hardware).
+lower-rank ablation, or larger-memory training hardware).
 
 ### KL direction
 
@@ -209,7 +207,7 @@ gating to just `modules_to_save`:
 Snapshot lives in the same dtype as the live param (bf16 for our
 setup). For Gemma 4 E2B + LoRA r=256 + projector + last-2 vision
 layers, the snapshot is ~50 M bf16 params = ~100 MB. Fits comfortably
-in the 4090 24G budget without disturbing batch size.
+in the training memory budget without disturbing batch size.
 
 ### Default
 
@@ -418,9 +416,8 @@ data:
   (`finetune/tests/test_regularization.py`, `test_config_regularization.py`,
   `test_trainer_regularization.py`); 11 prefix tests
   (`test_data_prompt_prefix.py`, `test_config_prompt_prefix.py`).
-  After the 2026-05-16 KL chunking removal (commit `c652580`) the
-  KL + L2 subset (22 tests in `test_regularization.py` +
-  `test_trainer_regularization.py`) is re-run green on CPU.
+  The KL + L2 subset covers both the default fast path and the chunked
+  KL path.
 - **GPU smoke**: `tests/test_regularization_gpu_smoke.py` — proves
   `disable_adapter()` swap actually reaches Gemma 4's forward
   (logits delta > 1e-3 between adapter on/off), and the full

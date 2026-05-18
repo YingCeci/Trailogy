@@ -35,8 +35,8 @@ deploy. The end-to-end question:
   + Wikipedia description; aug enabled)
 - Schedule: 5 epochs, cosine, warmup_ratio 0.03, peak LR 2e-4, projector
   LR 5e-5, batch 16, grad-accum 1, total 8,695 optimizer steps
-- Hardware: 4090 (24 GB) — 22.0 GB peak / 100 % util
-- Wall time: **3.04 h** (vs baseline-1's ~10 h on the same 4090). QLoRA's
+- Backend: CUDA — 22.0 GB peak / 100 % util
+- Runtime: **3.04 h** (vs baseline-1's ~10 h on the same backend). QLoRA's
   ~halved VRAM footprint lets the bnb-NF4 forward pass + bf16 LoRA backward
   run end-to-end without paging.
 - Final train loss: 0.152 (vs baseline-1's 0.152 also — matches within noise)
@@ -93,7 +93,7 @@ produces the rounding, and the LoRA adapter is the part that adapts.
       base key set including the dead KV tensors that `mlx_vlm.convert`
       strict-checks for.
 
-   Wall: ~50 s either way on the 4090.
+   Runtime: ~50 s either way on the CUDA backend.
 
 2. **bnb-NF4 quantize with `skip_modules=['vision_tower', 'embed_vision']`**
    (same recipe as baseline-1's `bnb_nf4_skip_both` — the only NF4 variant
@@ -106,7 +106,7 @@ produces the rounding, and the LoRA adapter is the part that adapts.
    - Size: **6.52 GB** (identical to baseline-1's; same recipe, same shapes)
    - Wall: ~45 s.
 
-3. **MLX conversion via `mlx_vlm.convert`** — DONE on the 4090.
+3. **MLX conversion via `mlx_vlm.convert`** — DONE on the CUDA backend.
    - Input: merged dir #2 (safetensors-level), required to satisfy
      mlx-vlm 0.4.3's strict load (#1 fails with "Missing 60 parameters",
      see `02b-mlx-torch-convert.md`).
@@ -122,13 +122,13 @@ produces the rounding, and the LoRA adapter is the part that adapts.
      `mlx-community/gemma-4-e2b-it-4bit`. Under the 4 GB ceiling.
    - Wall: ~2.5 min.
    - Convert ran in the conda `mlx` env CPU-side; no GPU JIT involved
-     at convert time (which is why the 4090 worked despite the runtime
+     at convert time (which is why conversion worked despite the runtime
      CUDA-header gotcha addressed in step 4).
 
-4. **MLX runtime eval on the 4090** — DONE. The Linux mlx-cuda
+4. **MLX runtime eval on Linux/CUDA** — DONE. The Linux mlx-cuda
    runtime needs a manual NVRTC↔toolkit fix-up before any kernels JIT.
    Helper: `src/quantization/scripts/_env/_mlx_env.sh`. Root cause
-   + fix detailed in `02b-mlx-torch-convert.md`'s "Action items +
+   + fix detailed in `02b-mlx-torch-convert.md`'s "Verification record"
    verification" section. TL;DR: `libmlx.so` links `libnvrtc.so.12`
    (NVRTC 12.9), but the host only ships CUDA 13 headers; the staging
    helper downloads matching CUDA 12.9 toolkit pip wheels and points
@@ -148,7 +148,7 @@ post-shuffle.
 | baseline-2 QLoRA · safetensors-merged bf16 (no PTQ; sanity ref)           | 9.57 GB   | 200 | **67.50 %** (135)  | 0.6855       | —              | `hf_bf16`  |
 | **baseline-2 QLoRA · MLX-INT4 g64 affine** (deploy candidate)             | **3.37 GB** | 200 | **22.50 %** (45)   | 0.3148       | —              | `mlx_vlm`  |
 
-Eval wall on the 4090: bnb-NF4 @ n=200 = 771 s; bf16 @ n=200 = 480 s;
+Eval runtime on CUDA: bnb-NF4 @ n=200 = 771 s; bf16 @ n=200 = 480 s;
 MLX-INT4 @ n=200 = **192 s** (~1 s/sample; mlx-cuda runs noticeably
 faster than HF/torch on this hardware for image-text generation).
 
@@ -169,7 +169,7 @@ faster than HF/torch on this hardware for image-text generation).
   merge is byte-correct (it preserves the trained QLoRA quality; the
   number is in the same ballpark as the bnb-NF4 read).
 - **Training wall is ~3× faster on baseline-2.** 3.04 h vs ~10 h on
-  the same 4090. The 4-bit base is loaded once with bnb's NF4 kernel
+  the same CUDA backend. The 4-bit base is loaded once with bnb's NF4 kernel
   and the forward pass dequantizes on the fly; no shrink in trainable
   param count vs baseline-1.
 - **The MLX-INT4 deploy candidate drops 45 pp from the bf16 reference**
@@ -194,34 +194,14 @@ faster than HF/torch on this hardware for image-text generation).
   `export_mlx.patch_processor_config_for_mlx_swift`) with no effect
   on the outcome.
 
-### Open: full eval + Q4 quality recovery
+### Interpretation
 
-- [ ] **Full eval at `EVAL_PLANTNET_N=2870`** on at minimum:
-      - `baseline2_qlora_safemerged_bf16/` — to land a number directly
-        comparable to baseline-1's `bf16_reference` row in
-        `B1-sft-results.md` (70.63 %). Expected wall ~3 h.
-      - `baseline2_qlora_mlx_vlm_g64/` — to confirm the -45 pp drop at
-        n=200 is not just n=200 noise (1σ ≈ 3.2 pp; the gap is huge
-        regardless but the absolute number stabilizes).
-- [ ] **Recover the MLX-INT4 quality**, ordered by expected impact:
-      1. `mlx_vlm.convert --q-mode dynamic_quant --q-calibration-data <plantnet-train>`
-         — affine + per-tensor scale calibrated on the trained
-         distribution typically recovers 3-15 pp on fine-tuned VLMs;
-         this is `mlx-community/gemma-4-e2b-it-4bit`'s own format.
-      2. `--q-group-size 32` — half the group size ≈ half the
-         quantization error per group; adds ~400-600 MB to the
-         artifact (likely close to but not over the 4 GB budget).
-      3. Selective skip-modules: keep the trained `embed_vision`
-         projector at bf16 (it's small — 2.2 MB — but it's the layer
-         the LoRA training tuned most heavily); skip-quantize the
-         last few language decoder layers.
-      4. `--q-bits 6` — recovers most of the gap but the artifact
-         lands ~4.5 GB, over the deploy ceiling.
-- [ ] WikiText PPL on baseline-2 MLX-INT4 — sanity tripwire (>2× bf16
-      ratio indicates catastrophic language damage; see baseline-1's
-      GPTQ rows in `B1-sft-results.md` for the methodology). Useful
-      to confirm whether the species-id collapse is a vision-feature
-      problem or a general language degradation.
+The n=200 results were enough to reject this route as the deployment
+path for the final artifact. The safetensors-level merge preserved the
+trained QLoRA behavior, but data-free MLX affine INT4 quantization
+destroyed fine-grained species discrimination. Later deploy work moved
+to the bf16-SFT plus MLX/EoRA path documented in the main quantization
+report.
 
 ## Artifacts
 

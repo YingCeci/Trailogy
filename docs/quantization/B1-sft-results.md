@@ -15,19 +15,19 @@ references on the un-SFT'd base live in `01-baselines.md`.
 
 ## At-a-glance
 
-Legend: ✅ done · 🟡 partial · ⏳ queued · ⛔ blocked
+Legend: ✅ done · 🟡 partial · ⛔ blocked
 
-| # | Variant | Machine | Eval | Size (GB) | PlantNet match (n=300) | ROUGE-L mean | Notes |
+| # | Variant | Backend | Eval | Size (GB) | PlantNet match (n=300) | ROUGE-L mean | Notes |
 |---|---|---|---|---|---|---|---|
-| R0 | `bf16_reference` (baseline LoRA r=256 + fullproj SFT) | 4090 desktop (24G) | ✅ | 9.54 | **86.7 %** (260/300) | 0.821 | reference ceiling, HF CUDA bf16 |
-| R1 | `gptq_w4g128_da0` | 4090 desktop | ✅ | 6.97 | **82.3 %** (247/300) | 0.802 | −4.4 pts vs bf16 ✅; Marlin kernel |
-| R2 | `gptq_w4g128_da1` | 4090 desktop | ✅ | 6.97 | **80.3 %** (241/300) | 0.784 | −6.4 pts; ExllamaV2 kernel (`desc_act=True`) |
-| R3 | `gptq_w4g64_da0` | 4090 laptop  | ✅ | 7.01 | **83.7 %** (251/300) | 0.804 | −3.0 pts; finer group beats g128 on this sample |
-| R4 | `gptq_w4g128_lmhead` | 4090 laptop  | ✅ | 6.97 | **81.0 %** (243/300) | 0.788 | −5.7 pts; `lm_head=True` auto-downgraded to `False` |
-| R6 | `gptq_w4g64_da0_hybrid_pl_g128` (GPTQ Linears + torchao int4 `embed_tokens_per_layer` + audio strip) | 4090 desktop | ✅ | **3.41** | **83.7 %** (251/300) | 0.804 | **−3.0 pts vs R0; 0.0 pts vs R3 source** ✅ first sub-4 GB HF/CUDA artifact. Loader `hf_gptq_hybrid` (with `embed_scale` carried through). |
-| R6.32 | `..._hybrid_pl_g32`  (same, finer group) | 4090 desktop | ✅ | 3.57 | **83.0 %** (249/300) | 0.804 | −3.7 pts vs R0; −0.7 vs R3 — group_size barely moves quality once runtime is correct |
-| R6.16 | `..._hybrid_pl_g16`  (same, finest group)| 4090 desktop | ✅ | 3.79 | **82.7 %** (248/300) | 0.797 | −4.0 pts vs R0; −1.0 vs R3 |
-| R6.dq | `..._dequantpl_g128` (quant-then-dequant control: noise-only, stock runtime) | 4090 desktop | ✅ | 7.01 | **82.7 %** (248/300) | 0.809 | runtime-isolation control row — see "What R6 proves" below |
+| R0 | `bf16_reference` (baseline LoRA r=256 + fullproj SFT) | HF/CUDA | ✅ | 9.54 | **86.7 %** (260/300) | 0.821 | reference ceiling, HF CUDA bf16 |
+| R1 | `gptq_w4g128_da0` | HF/CUDA | ✅ | 6.97 | **82.3 %** (247/300) | 0.802 | −4.4 pts vs bf16 ✅; Marlin kernel |
+| R2 | `gptq_w4g128_da1` | HF/CUDA | ✅ | 6.97 | **80.3 %** (241/300) | 0.784 | −6.4 pts; ExllamaV2 kernel (`desc_act=True`) |
+| R3 | `gptq_w4g64_da0` | HF/CUDA | ✅ | 7.01 | **83.7 %** (251/300) | 0.804 | −3.0 pts; finer group beats g128 on this sample |
+| R4 | `gptq_w4g128_lmhead` | HF/CUDA | ✅ | 6.97 | **81.0 %** (243/300) | 0.788 | −5.7 pts; `lm_head=True` auto-downgraded to `False` |
+| R6 | `gptq_w4g64_da0_hybrid_pl_g128` (GPTQ Linears + torchao int4 `embed_tokens_per_layer` + audio strip) | HF/CUDA | ✅ | **3.41** | **83.7 %** (251/300) | 0.804 | **−3.0 pts vs R0; 0.0 pts vs R3 source** ✅ first sub-4 GB HF/CUDA artifact. Loader `hf_gptq_hybrid` (with `embed_scale` carried through). |
+| R6.32 | `..._hybrid_pl_g32`  (same, finer group) | HF/CUDA | ✅ | 3.57 | **83.0 %** (249/300) | 0.804 | −3.7 pts vs R0; −0.7 vs R3 — group_size barely moves quality once runtime is correct |
+| R6.16 | `..._hybrid_pl_g16`  (same, finest group)| HF/CUDA | ✅ | 3.79 | **82.7 %** (248/300) | 0.797 | −4.0 pts vs R0; −1.0 vs R3 |
+| R6.dq | `..._dequantpl_g128` (quant-then-dequant control: noise-only, stock runtime) | HF/CUDA | ✅ | 7.01 | **82.7 %** (248/300) | 0.809 | runtime-isolation control row — see "What R6 proves" below |
 
 ### Cross-SFT references (different SFT recipes, same bf16 ceiling test)
 
@@ -63,7 +63,7 @@ Eval driver: `quantization/scripts/run/eval.py` (sys.path fix in
 
 Toolchain: `gptqmodel==7.0.0`, `bitsandbytes==0.49.2`,
 `transformers==5.8.0`, `peft==0.19.1`, `torch==2.10.0+cu130`,
-NVIDIA RTX 4090 24 GB.
+CUDA backend.
 
 ## Tripwires
 
@@ -84,7 +84,7 @@ A variant trips if any of:
 
 - size = **9.54 GB**; species_match = **86.7 %** (260/300); ROUGE-L
   mean = 0.821, median = 0.882.
-- Wall: **683 s** ≈ 11.4 min on 4090.
+- Runtime: **683 s** ≈ 11.4 min on the CUDA backend.
 - Source: `quantization/results/bf16_r0_sft_aug_enwiki_test300/eval.json`.
 
 This row is the reference ceiling. All HF tripwires compare against it.
@@ -92,7 +92,7 @@ Cross-framework reference for comparison:
 
 | Framework | PlantNet match (n=300) | ROUGE-L mean | Notes |
 |---|---|---|---|
-| HF CUDA bf16 (4090, this row) | **86.7 %** | 0.821 | R0 canonical reference |
+| HF CUDA bf16 (this row) | **86.7 %** | 0.821 | R0 canonical reference |
 | HF MPS bf16 (macbook) | 81.0 % | 0.787 | M0_hf in B2, on macbook's pre-fix sample — see "sample alignment" caveat below |
 | mlx_vlm bf16 (macbook) | 85.7 % | 0.831 | M0 in B2, also on macbook's pre-fix sample |
 
@@ -145,9 +145,9 @@ those numbers will be re-run on the canonical sample. See
 - Wall: **832 s** ≈ 13.9 min. Marlin kernel.
 - **Old result was 47.7 %** on n=2870 (B1 historical table). The
   large delta is partly checkpoint difference (this row is the new
-  laptop re-quant after the calibration-size diagnosis) and partly
+  re-quant after the calibration-size diagnosis) and partly
   sampling variance from the 300-row cap. The B1 historical doc
-  pre-noted "Pending: re-quant laptop variant with 256 PlantNet
+  pre-noted "Pending: re-quant variant with 256 PlantNet
   samples" — that re-quant landed and this is the result.
 - Finer group (g64) gives slightly better numerics than g128 on this
   task, at +0.04 GB on-disk.
@@ -162,7 +162,7 @@ those numbers will be re-run on the canonical sample. See
 - `lm_head=True` requested but auto-downgraded to `False` (Gemma 4
   has `tie_word_embeddings=True`; see `_resolve_lm_head` in the
   GPTQ method module). Variant is therefore equivalent in scope to
-  R1 — but it was originally quantized on the laptop with only 54
+  R1 — but it was originally quantized with only 54
   PlantNet calib samples, so the 1.3 pt gap from R1 (82.3 %) is the
   calibration-size effect surviving on this n=300 sample.
 - Source: `quantization/results/gptq_w4g128_lmhead_test300/eval.json`.
@@ -177,7 +177,7 @@ those numbers will be re-run on the canonical sample. See
 - size = **3.41 GB** on disk; species_match = **83.7 %** (251/300);
   ROUGE-L mean = 0.804, median = 0.875. **0.0 pp vs the R3 GPTQ
   source** that fed it (R3 = 83.7 %, bf16 embeds); −3.0 pp vs R0.
-- Wall: 875 s ≈ 14.6 min on the 4090 desktop. Marlin kernel via the
+- Runtime: 875 s ≈ 14.6 min on the CUDA backend. Marlin kernel via the
   `hf_gptq_hybrid` loader (`quantization/src/eval/model_loaders.py:
   load_hf_gptq_hybrid`).
 - Pipeline:
@@ -368,8 +368,8 @@ can find the matching row.
 
 3. **WikiText PPL on a domain-SFT model is high by design.** PPL in
    the 2,900–4,100 range is the new normal after SFT, not a regression.
-   The model's distribution shifted toward botanical descriptions; the
-   laptop's pre-SFT smoke showed PPL=274 on the same checkpoint.
+    The model's distribution shifted toward botanical descriptions; the
+    pre-SFT smoke showed PPL=274 on the same checkpoint.
    These numbers are useful for **relative** comparison between quant
    methods, not as absolute quality indicators.
 

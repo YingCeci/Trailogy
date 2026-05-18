@@ -424,4 +424,3 @@ further.
 - RAG runtime: [`05-rag-runtime.md`](05-rag-runtime.md)
 - Quantization design: [`../quantization/05-mlx-vlm-design.md`](../quantization/05-mlx-vlm-design.md)
 - EoRA recovery: [`../quantization/B2-sft-results.md`](../quantization/B2-sft-results.md) (M8)
-- Optimization catalog: [`07-optimizations-and-future.md`](07-optimizations-and-future.md)

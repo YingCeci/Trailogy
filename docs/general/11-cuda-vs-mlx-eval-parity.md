@@ -71,7 +71,7 @@ collapses to `<pad>` (the highest-probability bail-out token).
 
 ### Triage that confirms it's a quantized-matmul CUDA bug, not Gemma 4
 
-Same hardware, same model file, same seed, on a 4090:
+Same CUDA backend, same model file, same seed:
 
 | Test | Output | Verdict |
 |---|---|---|
@@ -87,7 +87,7 @@ land past the buggy tile boundary)**.
 ## The fix — build mlx `main` HEAD from source
 
 PyPI can't help (no 0.31.2+ wheel for CUDA). The reproducible recipe,
-verified on a 4090 box:
+verified on the Linux/CUDA eval host:
 
 ### One-time toolchain install (no sudo, conda env)
 
@@ -120,7 +120,7 @@ export CUDACXX=$CONDA_PREFIX/bin/nvcc
 export LAPACK_HOME=$CONDA_PREFIX
 export BLAS_HOME=$CONDA_PREFIX
 export CMAKE_PREFIX_PATH=$CONDA_PREFIX
-export CMAKE_BUILD_PARALLEL_LEVEL=2    # 16 GB host — raise on 32 GB+
+export CMAKE_BUILD_PARALLEL_LEVEL=2
 export CMAKE_ARGS="\
   -DMLX_BUILD_CUDA=ON \
   -DMLX_BUILD_METAL=OFF \
@@ -137,7 +137,7 @@ export CMAKE_ARGS="\
 pip install . --no-build-isolation -v
 ```
 
-Wall-clock ~1 hour on a 4090 box at `-j2`. QMM template instantiations
+Build time was dominated by QMM template instantiations
 dominate (32 `qmm_*.cu` files, each 3-5 min). The build replaces the
 `mlx` Python package in place; the existing `mlx-cuda-12==0.31.1`
 entry stays in `pip list` (it's an empty shim now) but its `libmlx.so`
@@ -151,9 +151,9 @@ is overwritten by the new build.
 - **System `cmake` (3.22 on Ubuntu 22.04) is too old.** Need ≥ 3.25
   from conda; make sure `which cmake` resolves into the conda env
   before invoking `pip install`.
-- **`-j>=4` on a 16 GB host will OOM mid-QMM** (`Error 137`). Each
-  nvcc instance on a QMM template peaks ~2 GB RSS. With 32 GB+ you can
-  raise to 6-8 safely.
+- Parallel build jobs can OOM mid-QMM (`Error 137`). Each nvcc
+  instance on a QMM template has high RSS; tune `CMAKE_BUILD_PARALLEL_LEVEL`
+  to the host memory budget.
 
 ### Runtime environment
 
@@ -186,8 +186,8 @@ Same M1 model, same `val_mac.jsonl`, n=300, seed=0:
 | Build | species_match | rouge_l_mean | matches | avg_resp_len | pad-spam |
 |---|---|---|---|---|---|
 | Mac mlx-metal 0.31.2 (reference) | **49.7 %** | 0.573 | 149/300 | 175 | 0 % |
-| Linux 4090 mlx-cuda-12 0.31.1 | 7.7 % | 0.165 | 23/300 | 411 | ~100 % |
-| **Linux 4090 mlx 0.32.0.dev+main (3-run mean)** | **40.6 %** [40.3, 41.0] | **0.401** [0.393, 0.410] | **121.7** [121, 123] | 385 [372, 398] | **~48 %** |
+| Linux/CUDA mlx-cuda-12 0.31.1 | 7.7 % | 0.165 | 23/300 | 411 | ~100 % |
+| **Linux/CUDA mlx 0.32.0.dev+main (3-run mean)** | **40.6 %** [40.3, 41.0] | **0.401** [0.393, 0.410] | **121.7** [121, 123] | 385 [372, 398] | **~48 %** |
 
 Smoke before vs after (same image, same seed, max_tokens=96):
 
@@ -264,7 +264,7 @@ Mac/Metal is more reproducible in practice:
 ### Empirical 3-run sweep (Linux, same model, same seed)
 
 Three back-to-back `--plantnet_n 300 --eval_seed 0` runs of the M1
-INT4 model on a 4090 with the from-source mlx 0.32.0.dev build:
+INT4 model on Linux/CUDA with the from-source mlx 0.32.0.dev build:
 
 | Metric | run1 | run2 | run3 | mean | range |
 |---|---|---|---|---|---|

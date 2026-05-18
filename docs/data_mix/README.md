@@ -29,7 +29,6 @@ camera-state prefix wiring) is in
 
 ## Historical Notes
 
-- [`00-datamix-roadmap.md`](00-datamix-roadmap.md): original design roadmap.
 - [`A-mix-20k-v1.md`](A-mix-20k-v1.md): first 20K mix, superseded.
 - [`C-v3-task-tag-eval-checkpoint-2000.md`](C-v3-task-tag-eval-checkpoint-2000.md): source-keyed tags, replaced by camera-state tags.
 

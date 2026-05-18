@@ -167,7 +167,7 @@ out-of-the-box. `IntxPackingFormat.OPAQUE_TORCHAO_LOWBIT` (true
 `device == cpu` + `dtype == float32` only, and requires the
 torchao experimental kernel library to be built from source
 (`mslk >= 1.0.0` / `libtorchao_ops_mps_aten.dylib`). Neither
-condition holds in our pytorch env on the 4090.
+condition holds in our PyTorch/CUDA environment.
 
 **Workaround**: torchao computes correct int4 scales/zero_points
 on CUDA, but the values stored in `qdata` are constrained to the
@@ -301,10 +301,9 @@ Why build branch 1 at all then:
    numerically sound on this model — useful before we trust similar
    packing tricks elsewhere.
 
-Branch 2 is straightforward (already partially done as B2-sft-results.md
-M1 at 78.3 % paper-grade); the new piece for branch 2 is just adding
-audio strip on the bf16 source before `mlx_vlm.convert`. Documented
-as a follow-up TODO.
+Branch 2 is straightforward and was partially covered by
+B2-sft-results.md M1 at 78.3 % paper-grade. The final deploy path used
+the MLX/EoRA route instead of extending this branch.
 
 ### Eval gate (CUDA branch, n=300 on val.jsonl, seed=0, EVAL_PLANTNET_N=300):
 - size ≤ 4.0 GB ✅
@@ -486,7 +485,7 @@ quant (target ~2.77 GB) is the next sub-goal; see §8 follow-ups.
    current 3.41 GB row: about −0.6 GB. If accuracy holds within ±2 pp
    the b1 deploy artifact drops below the 3 GB mark — comfortably
    inside the iOS jetsam ceiling. ~10 min quant + ~14 min eval on
-   the 4090.
+   the CUDA backend.
 
 2. **GPTQModel-side bugs** noted by main-HEAD audit
    (`gptqmodel/models/definitions/gemma4.py`, see B1-sft-results.md

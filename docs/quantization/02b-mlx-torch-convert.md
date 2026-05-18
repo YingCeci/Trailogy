@@ -229,7 +229,7 @@ existing baseline-2 adapter; would require re-running training. Useful
 as an independent reference point, but the convert problem here is
 about save / convert, not training, so this is the wrong layer to fix.
 
-## Action items + verification
+## Verification record
 
 - [x] Implemented Strategy A as
   `src/quantization/scripts/repair/merge_safetensors.py`. Takes
@@ -254,12 +254,12 @@ about save / convert, not training, so this is the wrong layer to fix.
   max/min / 35 layer_scalar / 12 per_dim_scale / 1 bias / 1
   position_embedding_table).
 - [x] Sanity eval the bf16-merged dir at PlantNet n=200 (HF
-  `hf_bf16` loader, fits on 4090): **67.50 %** species_match,
+  `hf_bf16` loader, fits on the CUDA eval backend): **67.50 %** species_match,
   ROUGE-L 0.6855. Within sample-noise margin of the prior bnb-NF4
   reading (69.50 % @ n=200) — 1σ at this n is ~3.2 pp, so the
   2 pp gap is not statistically meaningful. Confirms the merge is
   numerically reasonable (not a no-op, not garbage).
-- [x] MLX runtime eval (mlx_vlm loader) on the Linux 4090 — UNBLOCKED.
+- [x] MLX runtime eval (mlx_vlm loader) on Linux/CUDA — UNBLOCKED.
   Root cause: `libmlx.so` is hard-linked against `libnvrtc.so.12`
   (the env-bundled `nvidia-cuda-nvrtc-cu12 12.9.86`), but the only
   CUDA headers on the host are CUDA 13 (system `/usr/local/cuda` is
@@ -278,7 +278,7 @@ about save / convert, not training, so this is the wrong layer to fix.
   downloads the wheels once, stages them at
   `$MLX_ENV_ROOT/cuda12.9/`, and exports the right env vars. After
   staging, mlx-cuda compiles every kernel cleanly and inference
-  produces reasonable plant descriptions on the 4090
+  produces reasonable plant descriptions on Linux/CUDA
   (~12 prompt-tps / ~115 gen-tps for 290-prompt-token + 44-gen-token
   image-text turns).
 - [x] PlantNet n=200 eval landed (see results table below). The
@@ -295,25 +295,6 @@ about save / convert, not training, so this is the wrong layer to fix.
   prompts — i.e. the QLoRA training **is** present in our quantized
   weights (trained answer style preserved), but fine-grained
   species discrimination collapses under 4-bit affine quant.
-- [ ] PlantNet n=2870 full eval on the Strategy A bf16-merged dir
-  to land a number directly comparable to baseline-1's bf16
-  reference (70.63 %). At n=200 with ~3 pp noise floor we cannot
-  resolve a real QLoRA vs bf16-SFT gap. Expected wall ~3 h on 4090.
-- [ ] Improve the MLX-INT4 quality. The 22.5 % @ n=200 number above
-  is the affine-mode floor with no calibration. Options, in order
-  of expected impact:
-  1. `mlx_vlm.convert --q-mode dynamic_quant --q-calibration-data <plantnet-train.jsonl>`
-     — affine + per-tensor scale calibrated on the training
-     distribution typically recovers 3-15 pp on fine-tuned VLMs.
-  2. `--q-group-size 32` — half the group size, roughly half the
-     quantization error per group; adds ~400-600 MB to the artifact
-     (would push us toward but probably not past the 4 GB budget).
-  3. Selective skip-modules: keep the trained `embed_vision`
-     projector at bf16 (it's small — 2.2 MB — but is the layer the
-     LoRA training tuned most heavily); skip-quantize the last few
-     language decoder layers.
-  4. 6-bit `--q-bits 6` — significantly bigger artifact (~4.5 GB),
-     likely over budget but recovers most of the gap.
 
 ## Results table (all PlantNet val, same val.jsonl, eval_seed=0)
 
@@ -327,7 +308,7 @@ about save / convert, not training, so this is the wrong layer to fix.
 
 Engineering takeaway: end-to-end deploy path now produces a 3.37 GB
 artifact at the iOS shipping shape. Convert-time blocker resolved,
-runtime eval works on the 4090 (no Mac required).
+runtime eval works on Linux/CUDA (no Mac required).
 
 Quality takeaway: 4-bit affine MLX quantization with no calibration
 costs **−45 pp species_match** on this domain-specialized VLM (67.50 %
@@ -339,9 +320,8 @@ output on the same plant-description prompts — confirming the
 adapter weights are present in our quantized model (the trained
 "This appears to be X. Y is a species of …" template fires), but
 the per-class features the LoRA learned are not robust to 4-bit
-affine compression. Mitigation options listed in the action items
-above; recommended next step is `dynamic_quant` with calibration on
-the PlantNet training distribution.
+affine compression. This route was not used for the final deploy
+artifact.
 
 ## Why the -45 pp drop is real and not an eval bug
 

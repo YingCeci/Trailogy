@@ -45,7 +45,7 @@ Primary eval set: `src/finetune/eval_sets/plant_100.jsonl`
 the unstratified test.jsonl sample). Image paths resolved against
 `images_resized/test/` and persisted at `<results>/_eval_inputs/plant_100_abs.jsonl`.
 
-Legend: ✅ done · 🟡 partial · ⏳ queued · ⛔ blocked
+Legend: ✅ done · 🟡 partial · ⛔ blocked
 
 | # | Variant | Pipeline | Size (GB) | match | ROUGE-L | Drop vs M0 | Notes |
 |---|---|---|---|---|---|---|---|
@@ -56,12 +56,7 @@ Legend: ✅ done · 🟡 partial · ⏳ queued · ⛔ blocked
 | M8a | `mlx_g64 + eora r=32 (separate)` | M2 + EoRA r=32 (truncated from saved r=64) | 3.5 | **19.0 %** (19/100) | 0.133 | −21 | ✅ EoRA not helping on this SFT |
 | M8b | `mlx_g64 + eora r=64 (separate)` | M2 + EoRA r=64 (full saved adapter) | 3.6 | **18.0 %** (18/100) | 0.116 | −22 | ✅ no recovery vs M2 |
 | M8b-merge | `mlx_g64_eora64_merged` | M2 + EoRA r=64, dict-level merge: dequant + Δ + requant | 3.4 | **17.0 %** (17/100) | 0.127 | −23 | ✅ functional (was 0% pad-spam pre-fix) |
-| M4 | `mlx_hybrid_gptq_stable_w4_g128` | hybrid + `gptq_stable.py` | — | — | — | — | ⏳ skipped (slow + −22.7 pt on prev SFT) |
-| M4b | `mlx_lm_gptq_w4_g128` | mlx-lm baseline GPTQ | — | — | — | — | ⏳ skipped |
 | M5 | `mlx_hybrid_awq_w4_g128` | hybrid + AWQ | — | — | — | — | ⛔ (gemma4 not in AWQ_MODEL_CONFIGS) |
-| M6 | `mlx_hybrid_dynamic_quant_bpw4_g128` | hybrid + sensitivity-driven 3/4-bit mix | — | — | — | — | ⏳ aborted (low SFT ceiling makes 30 min spend low value) |
-| M7 | `mlx_hybrid_dwq_w4_g128` | hybrid + KL distillation | — | — | — | — | ⏳ deferred |
-| M8c | `mlx_g64 + eora r=128 (separate)` | M2 + EoRA r=128 | — | — | — | — | ⏳ need max_rank=128 recompute |
 
 ### Headline takeaways (plant_100, n=100)
 
@@ -307,42 +302,6 @@ For comparison, key numbers from the previous SFT round:
 
 ## Per-variant detail
 
-### M0 — `bf16_r8a8_nokl_13k` ⏳
-
-(pending)
-
-### M1 — `mlx_vlm_g128_r8a8_nokl_13k` ⏳
-
-(pending)
-
-### M2 — `mlx_vlm_g64_r8a8_nokl_13k` ⏳
-
-(pending)
-
-### M3 — `mlx_vlm_g32_r8a8_nokl_13k` ⏳
-
-(pending)
-
-### M4 — `mlx_hybrid_gptq_stable_w4_g128` ⏳
-
-(pending — re-test with new SFT)
-
-### M4b — `mlx_lm_gptq_w4_g128` ⏳
-
-(pending — mlx-lm baseline GPTQ, was NaN on prev SFT)
-
-### M5 — `mlx_hybrid_awq_w4_g128` ⏳
-
-(pending — was ⛔ blocked on prev SFT due to missing gemma4_text AWQ config)
-
-### M6 — `mlx_hybrid_dynamic_quant_bpw4_g128` ⏳
-
-(pending)
-
-### M8 — EoRA post-quant adapters on M2 ⏳
-
-(pending — M8a/r=32, M8b/r=64, M8c/r=128)
-
 ### M8b-merge — `mlx_g64_eora64_merged` ✅ (after bug fix)
 
 Single-file variant of M8b: instead of loading M2 + a separate adapter
@@ -397,32 +356,22 @@ construction (called during sanitize before our weights were copied
 in) leaked into the save dict because we saved `model.state_dict()`
 without filtering. The dict-level v2 sidesteps all of this.
 
-- HF (after re-upload): `<author>/gemma-4-E2B/r8-a8-nokl-step13000_mlx_g64_eora64-merge`
-  (currently the broken v1 — TODO: re-upload v2).
+- HF artifact path: `<author>/gemma-4-E2B/r8-a8-nokl-step13000_mlx_g64_eora64-merge`
+  (v1 artifact affected by the round-trip issue above; v2 is the
+  dict-level merge).
 - Use case: single-file deployment when QLoRA-style adapter plumbing
   is not available.
 
-### M7 — `mlx_hybrid_dwq_w4_g128` ⏳
-
-(pending — was deferred on prev SFT due to broadcast bug)
-
 ## Full sweep conclusion
-
-(pending — will be filled after all rows complete)
 
 | # | Method | Size | bpw | match | Drop vs M0 |
 |---|---|---|---|---|---|
-| M0 | bf16 (ceiling) | — | 16 | — | — |
-| M1 | affine g128 | — | — | — | — |
-| M2 | affine g64 | — | — | — | — |
-| M3 | affine g32 | — | — | — | — |
-| M4 | GPTQ stable | — | — | — | — |
-| M4b | GPTQ mlx-lm baseline | — | — | — | — |
-| M5 | AWQ hybrid | — | — | — | — |
-| M6 | dynamic_quant | — | — | — | — |
-| M7 | DWQ | — | — | — | — |
-| M8b | M2 + EoRA r=64 (separate adapter) | — | — | — | — |
-| M8b-merge | M2 + EoRA r=64 (merged into int4) | — | — | — | — |
+| M0 | bf16 (ceiling) | 9.6 GB | 16 | 40.0 % | — |
+| M1 | affine g128 | 3.2 GB | — | 23.0 % | −17 |
+| M2 | affine g64 | 3.4 GB | — | 20.0 % | −20 |
+| M3 | affine g32 | — | — | 25.0 % | −15 |
+| M8b | M2 + EoRA r=64 (separate adapter) | 3.6 GB | — | 18.0 % | −22 |
+| M8b-merge | M2 + EoRA r=64 (merged into int4) | 3.4 GB | — | 17.0 % | −23 |
 
 ## Source paths — MLX-LM / MLX-VLM quant primitives we depend on
 
@@ -439,18 +388,3 @@ without filtering. The dict-level v2 sidesteps all of this.
 | **M8** | `src/quantization/src/methods/eora_mlx.py` |
 | hybrid driver | `src/quantization/scripts/run/mlx_hybrid_quant.py` |
 | affine driver | `src/quantization/scripts/run/mlx_vlm_deploy_variant.py` |
-
-## How to refresh a row
-
-```bash
-python3 -c "
-import json, sys
-with open(sys.argv[1]) as f: d = json.load(f)
-p = d['benchmarks']['plantnet_val']
-print(f'size = TBD GB; species_match = {p[\"species_match\"]*100:.1f}% '
-      f'({p[\"species_matches\"]}/{p[\"n\"]}); '
-      f'ROUGE-L mean = {p[\"rouge_l_mean\"]:.3f}, '
-      f'median = {p[\"rouge_l_median\"]:.3f}; '
-      f'wall = {p[\"elapsed_s\"]:.0f}s')
-" quantization/results/<variant>/eval.json
-```

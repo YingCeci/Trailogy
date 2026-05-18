@@ -26,7 +26,7 @@ n = 300 PlantNet) isolates the cause:
 | `gptq_w4g128_da=1` (ref) | LM only | 68.8 % (full) | 0.699 / 0.863 |
 | `bf16` reference | nothing | 70.6 % (full) | 0.711 / 0.867 |
 
-*baseline number from laptop full-val run, n=2,870.
+*baseline number from the full-val run, n=2,870.
 
 The conclusion is unambiguous: **the SigLIP vision tower is the sole
 non-negotiable**. Once it stays bf16, accuracy recovers to GPTQ-level
@@ -63,7 +63,7 @@ could explain, so something visual must also be broken.
 
 ## Ablation — isolating vision_tower vs embed_vision (n=300)
 
-Run on a 4090 CUDA host (PlantNet val.jsonl, `--plantnet_n 300`,
+Run on the CUDA backend (PlantNet val.jsonl, `--plantnet_n 300`,
 deterministic temperature):
 
 | Variant | skip list (logical) | resolved bnb skip | PlantNet | ROUGE mean/med | wall (s) |
@@ -523,7 +523,7 @@ between quant and eval.** The ablation driver
 - `quantization/scripts/inspect/vision_dtype.py` — vision-tower
   bf16-clean tripwire. 9 tests in
   `quantization/tests/test_inspect_vision_dtype.py`.
-- `quantization/results/bnb_nf4/eval.json` — laptop result, n=2,870
+- `quantization/results/bnb_nf4/eval.json` — full-val result, n=2,870
   (the original 0.1 % collapse).
 - `quantization/results/bnb_nf4_skip_{ev,vt,both}/eval.json` — the
   three ablation results, n=300.

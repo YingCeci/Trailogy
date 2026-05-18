@@ -323,5 +323,3 @@ cameraGate}` were active.
 - scenePhase Metal background safety: [`06-scenephase-metal-background.md`](06-scenephase-metal-background.md)
 - iOS dev timeline (Phase 6 / Phase 7 RAG work):
   [`09-dev-timeline-ios.md`](09-dev-timeline-ios.md)
-- Track B v4 `[camera=on/off]` SFT gate (model-side counterpart):
-  [`08-dev-timeline-model.md`](08-dev-timeline-model.md)

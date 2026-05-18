@@ -16,7 +16,7 @@ the un-SFT'd base live in `01-baselines.md`.
 
 ## At-a-glance
 
-Legend: ✅ done · 🟡 partial · ⏳ queued · ⛔ blocked
+Legend: ✅ done · 🟡 partial · ⛔ blocked
 
 | # | Variant | Pipeline | Eval n | Size (GB) | PlantNet match | ROUGE-L mean | iOS-loadable | Notes |
 |---|---|---|---|---|---|---|---|---|
@@ -27,7 +27,6 @@ Legend: ✅ done · 🟡 partial · ⏳ queued · ⛔ blocked
 | M4 | `mlx_hybrid_gptq_stable_w4_g128` | hybrid + `gptq_stable.py` (desc_act + dead-col + symmetric clip; ported from a prior GPTQ implementation) | 300 | **3.9** | **65.7 %** (197/300) | 0.663 | yes ✅ | −22.7 pts ⚠ NaN fixed but per-row symmetric scale too coarse |
 | M5 | `mlx_hybrid_awq_w4_g128` | hybrid + AWQ_MODEL_CONFIGS["gemma3"] re-used for "gemma4_text" | — | — | ⛔ convert fails | — | — | `'Linear' object has no attribute 'input_feat'` — gemma3 topology insufficient for Gemma 4 |
 | M6 | `mlx_hybrid_dynamic_quant_bpw4_g128_v2` | hybrid + sensitivity-driven mix of (3-bit, 4-bit) groups, target_bpw=4, gradient_checkpoint=True | 300 | **3.2** | **83.3 %** (250/300) | 0.797 | yes ✅ | −5.0 pts vs M0 🟡 |
-| M7 | `mlx_hybrid_dwq_w4_g128` | hybrid + KL distillation training loop (teacher = bf16 LM) | — | — | ⏳ not attempted | — | — | requires multi-day plumbing (dataset adapter + training loop) |
 | M8a | `eora_on_m2_g64_r32` | M2 + EoRA post-quant adapter (r=32, eigenspace-weighted SVD, 128×512 WikiText calib) | 300 | **3.5** (3.4 + 0.10) | **86.3 %** (259/300) | 0.823 | yes ✅ (QLoRA-compatible) | −2.0 pts vs M0 ✅ |
 | M8b | `eora_on_m2_g64_r64` | M2 + EoRA post-quant adapter (r=64) | 300 | **3.6** (3.4 + 0.21) | **88.0 %** (264/300) | 0.839 | yes ✅ (QLoRA-compatible) | **−0.3 pts vs M0** ✅ within noise |
 | M8c | `eora_on_m2_g64_r128` | M2 + EoRA post-quant adapter (r=128) | 300 | **3.8** (3.4 + 0.42) | **87.0 %** (261/300) | 0.838 | yes ✅ (QLoRA-compatible) | −1.3 pts vs M0 ✅ |
@@ -104,7 +103,7 @@ Notes:
   inert at runtime (KV-shared layers fetch K/V from cache state per
   `mlx_vlm/models/gemma4/language.py:204-220`).
 - species_match = **88.3 %** (265/300); ROUGE-L mean = 0.856
-- Eval wall: 290 s on M5 Pro 32 GB.
+- Eval runtime: 290 s on Mac MLX.
 - This is the ceiling for any MLX variant on this exact (model,
   sorted test/ split, n=300 seed=0) combination.
 - **Cross-validation (M0_hf)**: same bf16 weights loaded via HF
@@ -130,7 +129,7 @@ Notes:
 - species_match = **83.0 %** (249/300); ROUGE-L mean = 0.794
 - Drop vs M0: **−5.3 pts** 🟡 (just above the ≤5 pts "comfortable"
   band, within the 10 pt tripwire).
-- Eval wall: 145 s on M5 Pro.
+- Eval runtime: 145 s on Mac MLX.
 - Tripwires (all ✅):
   - `inspect_vision_dtype`: `vision_tower.*` 658 tensors, 334.7 MB,
     all BF16/F32/F16.
@@ -152,7 +151,7 @@ Notes:
 - size = **3.4 GB** on disk; effective bits/weight = 5.642.
 - species_match = **83.7 %** (251/300); ROUGE-L mean = 0.803
 - Drop vs M0: **−4.7 pts** ✅ within the 5 pt band.
-- Eval wall: 148 s on M5 Pro.
+- Eval runtime: 148 s on Mac MLX.
 
 ### M3 — `mlx_vlm_g32_sft_aug_enwiki` ✅
 
@@ -160,7 +159,7 @@ Notes:
 - size = **3.6 GB** on disk; effective bits/weight = 6.095.
 - species_match = **84.0 %** (252/300); ROUGE-L mean = 0.803
 - Drop vs M0: **−4.3 pts** ✅ within the 5 pt band.
-- Eval wall: 156 s on M5 Pro.
+- Eval runtime: 156 s on Mac MLX.
 
 ### M1–M3 affine sweep conclusion
 
@@ -193,7 +192,7 @@ M0 (88.3 %) is 4.3 pt — within the comfortable band.
   3. **Symmetric per-row clipping** — adaptive `clip_sigmas * row_std`
      range instead of per-group min/max asymmetric grid.
 - Calibration: 256 samples × 2048 tokens from WikiText-2 train.
-- Quant wall time: ~73 min on M5 Pro (Hessian ~68 min, Quantize
+- Quant runtime: ~73 min on Mac MLX (Hessian ~68 min, Quantize
   ~5 min for 315 layers, Save ~21 s). **Zero NaN/Inf** — all 315
   layers quantized successfully, none fell back.
 - size = **3.9 GB** on disk; effective bits/weight = 5.470.
@@ -257,7 +256,7 @@ M0 (88.3 %) is 4.3 pt — within the comfortable band.
 - First failure: OOM during `search_best_scale`. AWQ's grid search
   materializes `(n_grid, B, T, H)` tensors. At default n_grid=20 with
   256 × 2048 calibration this asks for 17 GB > Metal's per-buffer
-  ceiling of 14.3 GB on M5 Pro. Fixed by dropping to (64 × 512) +
+  memory ceiling on the Mac MLX eval host. Fixed by dropping to (64 × 512) +
   n_grid=10.
 - Second failure: `AttributeError: 'Linear' object has no attribute
   'input_feat'` inside `search_best_clip`. AWQ uses forward hooks to
@@ -282,7 +281,7 @@ M0 (88.3 %) is 4.3 pt — within the comfortable band.
 - **v2 changes vs v1** (which timed out at 2 h):
   - Reduced calibration: 64 samples × 512 tokens (v1: 128 × 512)
   - `gradient_checkpoint=True` in `estimate_sensitivities` — trades
-    compute for memory, avoids M5 Pro page-compression stalls
+    compute for memory, avoids page-compression stalls
   - Result: sensitivity phase completed in **32 min** (16 iters ×
     ~121 s/it, stable rate throughout — no memory-pressure degradation)
 - size = **3.2 GB** on disk; effective bits/weight = 4.285 (mix of
@@ -291,10 +290,10 @@ M0 (88.3 %) is 4.3 pt — within the comfortable band.
 - Drop vs M0: **−5.0 pts** 🟡 — close to M1 (83.0 %), slightly
   below M2/M3. Calibration-based sensitivity does not meaningfully
   beat flat affine on this model.
-- Eval wall: 146 s on M5 Pro.
+- Eval runtime: 146 s on Mac MLX.
 - **Historical note (v1)**: the original M6 run (2026-05-14) used
   128 × 512 calibration without `gradient_checkpoint`. Iter rate
-  degraded from ~150 s/it to ~200+ s/it as the M5 Pro started
+  degraded from ~150 s/it to ~200+ s/it as the Mac backend started
   compressing pages (~70 MB free, 600 MB compressed at iter 14/32).
   Killed at 2 h with no save. `gradient_checkpoint=True` fixes this
   by trading recomputation for peak memory — stable ~121 s/it
@@ -338,7 +337,7 @@ At inference: `y = quantized_linear(x) + x @ A^T @ B^T`
   K/V projections in KV-shared layers 15-34 (no separate bf16 weights
   in the merged model — they share K/V from the global cache).
 - Calibration: 28 min. EoRA computation: 23 min. Eval: ~4 min/rank.
-  Total pipeline: ~60 min on M5 Pro 32 GB.
+  Total pipeline: ~60 min on Mac MLX.
 - Adapter format: safetensors with `<module_path>.lora_a` (in_dim, r)
   and `<module_path>.lora_b` (r, out_dim) keys, bf16. Compatible with
   mlx-swift-lm's QLoRALinear.
@@ -353,23 +352,6 @@ replaces M2 alone (3.4 GB, 83.7%) as the recommended artifact. The
 0.2 GB adapter cost buys 4.3 pt of quality back, landing within noise
 of the bf16 ceiling.
 
-### M7 — `mlx_hybrid_dwq_w4_g128` ⏳
-
-- Not attempted. DWQ is a training-loop method: it pre-computes
-  teacher logits from the bf16 LM, then trains the quantized
-  student's scales via KL divergence over (forward + backward + opt
-  step) loops. Doc 01b reported a broadcast bug on the 2026-05-13
-  mac_mlx_lm run (`Shapes (2,576) and (2,288)` in `dwq.py:113` —
-  KV-shared layout mismatch in DWQ's validation-loss path); whether
-  hybrid flow fixes that is untested.
-- Plumbing cost: mlx_lm.quant.dwq.load_data expects an HF dataset
-  path (it uses the tuner's dataset adapters). We'd need to either
-  feed it `wikitext` directly or adapt our text_calibration into the
-  dwq.iterate_batches format (~30 LOC). Then ~1 h training on this
-  hardware.
-- Verdict: deferred — low payoff if DWQ's broadcast bug reproduces,
-  high plumbing cost otherwise.
-
 ## Full sweep conclusion (2026-05-15, sorted test.jsonl)
 
 | # | Method | Size | bpw | match | Drop vs M0 |
@@ -381,7 +363,6 @@ of the bf16 ceiling.
 | M4 | GPTQ stable (per-row sym) | 3.9 GB | 5.5 | **65.7 %** | −22.7 |
 | M5 | AWQ hybrid | — | — | ⛔ blocked | — |
 | M6 | dynamic_quant | 3.2 GB | 4.3 | **83.3 %** | −5.0 |
-| M7 | DWQ | — | — | ⏳ deferred | — |
 | **M8b** | **M2 + EoRA r=64** | **3.6 GB** | — | **88.0 %** | **−0.3** |
 
 **M8b (M2 + EoRA r=64) essentially closes the quant gap.** At 88.0%

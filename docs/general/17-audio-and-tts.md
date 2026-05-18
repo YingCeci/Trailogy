@@ -98,9 +98,7 @@ subsequent sentences arrive continuously while the model is still
 writing. The result is a conversation that feels like the companion is
 thinking out loud, not reading from a script.
 
-Three sharp edges we had to file down to make streaming sound natural,
-all captured in the TTS section of
-[`07-optimizations-and-future.md`](07-optimizations-and-future.md#4-tts--audio):
+Three sharp edges we had to file down to make streaming sound natural:
 
 - **3-stage chunker** (sentence → clause → hard 80-char cap). Kokoro's
   duration predictor becomes unstable past ~80 characters, so very

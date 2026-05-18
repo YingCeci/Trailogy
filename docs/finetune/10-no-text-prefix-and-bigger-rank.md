@@ -7,7 +7,7 @@
 - Increasing to rank 16 with alpha/r kept at 1.0 produced the best recorded composite score in this note: 0.415 at step 20000.
 - The current takeaway is to prefer `r16-a16-nokl-no-text-prefix` as the new production candidate, while treating the alternate `mixc` data variant as a negative result.
 
-> **Status (2026-05-18, noon)**: 在 H200 上跑了两组新的对照
+> **Status (2026-05-18, noon)**: 跑了两组新的对照
 > 实验,把先前 docs/09 里"r=8, α=8, KL=0, ~4647 step"的 SOTA
 > 推翻。新的 production candidate 是
 > **`r16-a16-nokl-no-text-prefix` @ step 20000, composite=0.415**
@@ -263,17 +263,17 @@ docs/08-09 留下来的 "α/r=1.0 + KL=0" 主轴不变。
 > capacity 翻倍同时 mmlu 不退 (+14% composite)。下一步推 rank
 > 到 32 + vision-last-2 验证 plant > 0.5 是否可达。
 
-## 9. MacBook M5 Pro cross-hardware eval (2026-05-18 evening)
+## 9. Mac-vs-CUDA backend eval (2026-05-18 evening)
 
-Mac 上跑了三组 eval,用的是 `sweep_eval_only.sh` + `evaluate_generality.py`
+Mac 后端跑了三组 eval,用的是 `sweep_eval_only.sh` + `evaluate_generality.py`
 (Darwin MPS path, monkey-patch `caching_allocator_warmup` to no-op)。
-跟 H200 eval 用同一 evaluator,但 evaluator 在 Mac 上是 bf16+MPS
-不是 bf16+CUDA,数值可能有小偏差(docs/08 §A2.1 估 ~5% noise floor)。
+跟 CUDA 后端 eval 用同一 evaluator,但 Mac 上是 bf16+MPS,
+不是 bf16+CUDA,数值可能有小偏差。
 
-### 9a. `r8-a16-drop005-mix50k` (4090 trained, Mac eval) — 4k/5k/6k
+### 9a. `r8-a16-drop005-mix50k` (CUDA-trained, Mac eval) — 4k/5k/6k
 
-跟 docs/08-09 里讨论的 4090 本地 run 完全一样的 adapter,
-区别是 eval 在 Mac 而不是 4090。
+跟 docs/08-09 里讨论的 CUDA run 完全一样的 adapter,
+区别是 eval 在 Mac 后端而不是 CUDA 后端。
 
 | step | plant | mmlu | aime | llava | refusal | composite |
 |---|---|---|---|---|---|---|
@@ -285,37 +285,37 @@ Mac 上跑了三组 eval,用的是 `sweep_eval_only.sh` + `evaluate_generality.p
 - mmlu peak at step 5k (0.62), 6k 开始回落 (0.58)。mild overfitting。
 - refusal 从 step 4k 的 0% 翻到 step 5k 的 100%。safety 在 4k-5k
   之间恢复。
-- plant 在 0.14-0.15 plateau, 跟 H200 SOTA 的 0.23 相比低很多,
-  因为这是 α/r=2.0 的 run (docs/08 §A2.3 论证 α/r=2.0 calibration
+- plant 在 0.14-0.15 plateau, 跟旧 SOTA 的 0.23 相比低很多,
+  因为这是 α/r=2.0 的 run (α/r=2.0 calibration
   差 → plant_match 低)。
 
-这个 run 有 llava + refusal eval (H200 eval 当时没跑这两域),
+这个 run 有 llava + refusal eval (旧 SOTA eval 当时没跑这两域),
 首次确认 mix-50k SFT **llava leakage = 0%**(模型不泄漏 train
 数据到 llava 回答里)。
 
-### 9b. `r8-a8-nokl-laptop` (laptop 4090 trained, Mac eval) — 1k/2k
+### 9b. `r8-a8-nokl-local` (CUDA-trained, Mac eval) — 1k/2k
 
-跟 H200 SOTA 完全同 config (r=8, α=8, KL=0, mix-50k, camera
-prefix v4), 但在 laptop 4090 上训 (eff_bs=16, lr=2e-4, 不是
-H200 的 bs=32 lr=3e-4)。
+跟旧 SOTA 完全同 config (r=8, α=8, KL=0, mix-50k, camera
+prefix v4), 但训练超参较保守 (eff_bs=16, lr=2e-4, 不是
+旧 SOTA 的 bs=32 lr=3e-4)。
 
 | step | plant | mmlu | aime | llava | refusal | composite |
 |---|---|---|---|---|---|---|
 | 1000 | 0.040 | **0.620** | 0.100 | 0.132 (leak=0%) | 1.000 | 0.333 |
 | 2000 | 0.060 | 0.580 | **0.200** | 0.128 (leak=0%) | 1.000 | 0.343 |
 
-跟 H200 SOTA @ step 4647 (plant=0.23, mmlu=0.48, aime=0.20,
+跟旧 SOTA @ step 4647 (plant=0.23, mmlu=0.48, aime=0.20,
 composite=0.319) 比:
-- mmlu **大幅领先** H200 (0.62 vs 0.48)。laptop 的 S_step=0.0032
-  (α/r=1.0 × lr=2e-4 × bs=16) 远小于 H200 的 0.0096,所以学得
+- mmlu **大幅领先**旧 SOTA (0.62 vs 0.48)。该 run 的 S_step=0.0032
+  (α/r=1.0 × lr=2e-4 × bs=16) 远小于旧 SOTA 的 0.0096,所以学得
   更保守、mmlu anchor 更强。
 - plant 还很低 (0.04→0.06),因为才 2k step、只看了 32k sample
-  (vs H200 的 148k)。需要跑到 step 4k-5k 才能公平比。
+  (vs 旧 SOTA 的 148k)。需要跑到 step 4k-5k 才能公平比。
 - **r8-a8-nokl recipe 跨硬件复现成功**。
 
-### 9c. `r8-a8-nokl-vision2-local` (H200→local continue, vision tower last-2) — 10k
+### 9c. `r8-a8-nokl-vision2-local` (continued run, vision tower last-2) — 10k
 
-H200 SOTA (r8-a8-nokl step ~9k) 做 parent, 在本地继续训 ~1k step
+旧 SOTA (r8-a8-nokl step ~9k) 做 parent, 继续训 ~1k step
 with `tune_last_n_vision_layers=2`。
 
 | step | plant | mmlu | aime | llava | refusal | composite |
@@ -323,7 +323,7 @@ with `tune_last_n_vision_layers=2`。
 | 10000 | **0.000** | 0.480 | 0.150 | 0.119 (leak=0%) | 1.000 | 0.289 |
 
 **结论: vision tower unfreeze 直接把 plant 从 0.23 干到 0.00**。
-mmlu 维持 (0.48 = 跟 H200 SOTA 一样), 但 plant learning 被完全
+mmlu 维持 (0.48 = 跟旧 SOTA 一样), 但 plant learning 被完全
 抹掉。原因: vision encoder 的 feature space 移位, language LoRA
 + projector 在仅 ~1k step 内来不及 track 新的 representation。
 这是 AGENTS.md 里提到的 "feature-space misalignment risk" 的实证。

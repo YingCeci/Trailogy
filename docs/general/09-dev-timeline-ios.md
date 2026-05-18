@@ -396,8 +396,8 @@ timeline
 
 ## Cross-references
 
-- Model-side timeline (the producer of `Models/Gemma/` for Phase 7's
-  `fetch-gemma-finetune.sh`): [`08-dev-timeline-model.md`](08-dev-timeline-model.md)
+- Model-side pipeline produced `Models/Gemma/` for Phase 7's
+  `fetch-gemma-finetune.sh`.
 - Architecture: [`02-architecture-ios-app.md`](02-architecture-ios-app.md)
 - Memory deep-dive: [`03-memory-management.md`](03-memory-management.md)
 - Build pipeline + SPM deps: [`04-xcode-build-and-deps.md`](04-xcode-build-and-deps.md)

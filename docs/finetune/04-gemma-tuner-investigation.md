@@ -40,8 +40,7 @@ No imports of `auto-gptq`, `gptqmodel`, `bitsandbytes`, `optimum`,
 
 ## What the repo IS good for
 
-If we end up needing any of the following post-deadline, this repo
-is worth a closer look:
+The repo was useful as a reference for adjacent infrastructure:
 
 - **Apple Silicon (MPS) training** — they handle MPS-specific quirks
   (fp16 → bf16 promotion, MPS allocator behavior, etc.) that we have
@@ -59,5 +58,4 @@ is worth a closer look:
 Mark as "investigated, no quantization signal." Do not add as a
 dependency or template for the quantization branch.
 
-If a teammate has free cycles post-deadline and is curious about
-their MPS or streaming-data work, this is a reasonable repo to read.
+Its MPS and streaming-data work remain useful background references.

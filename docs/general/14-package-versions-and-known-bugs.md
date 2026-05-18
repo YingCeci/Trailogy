@@ -9,9 +9,9 @@
 
 ## Tested package combination
 
-Captured **2026-05-13** on a Linux + RTX 4090 dev box. The same
-combination has been exercised on remote H100/H200 (cloud sweep) and
-M-series Mac (MLX deploy + EoRA calibration).
+Captured **2026-05-13** on the Linux/CUDA training stack. The same
+combination has been exercised across CUDA training/eval and Mac MLX
+deploy/EoRA calibration.
 
 ### System
 
@@ -22,8 +22,8 @@ M-series Mac (MLX deploy + EoRA calibration).
 | Torch | 2.10.0+cu130 |
 | CUDA (runtime) | 13.0 |
 | cuDNN | 9.15.1 |
-| GPU | RTX 4090 (24 GB) |
-| GPU compute capability | (8, 9) — Ada, treated as Ampere+ (TF32 path on) |
+| GPU | CUDA device with Ampere-or-newer TF32 support |
+| GPU compute capability | Ampere+ (`torch.cuda.get_device_capability(0)[0] >= 8`) |
 
 The conda env's `stdc++` is required for `optree` (a `torch._dynamo`
 dep) to find `GLIBCXX_3.4.31`. Set before any train / eval / smoke
@@ -68,7 +68,7 @@ Version-sensitive code paths in `finetune/src/` that depend on the
 table above:
 
 - **TF32**: `_resolve_effective_tf32` enables TF32 only when
-  `torch.cuda.get_device_capability(0)[0] >= 8`. 4090 = (8, 9) → on.
+  `torch.cuda.get_device_capability(0)[0] >= 8`.
   Passing `tf32=True` on pre-Ampere raises in transformers 5.x; the
   helper omits the SFTConfig kwarg in that case.
 - **warmup_ratio**: forwarded as

@@ -171,7 +171,7 @@ do to the vision side.
 | Tool | Route | Status |
 |---|---|---|
 | bnb-NF4 QLoRA SFT | A.1 — 4-bit SFT | done (`../../quantization/A-baseline2-qlora-progress.md`) |
-| torchao QAT (cooldown or from-scratch) | A.2 — proposed | not started; needs §7 experiment first |
+| torchao QAT (cooldown or from-scratch) | A.2 — exploratory | design note only |
 | bf16 LoRA SFT → GPTQModel PTQ | B.1 — PTQ via GPTQModel | done (R1/R2 in `../../quantization/B1-sft-results.md`) |
 | bf16 LoRA SFT → mlx_vlm/mlx_lm PTQ | B.2 — PTQ via MLX | partial (`../../quantization/B2-sft-results.md`) |
 
@@ -219,75 +219,18 @@ This is not a "transformative" outcome. It is potentially a
 deliverable but does not justify a large engineering investment up
 front. See §7 for the right-sized first step.
 
-## 7. Minimum decision experiment
+## 7. Interpretation gaps
 
-The decision "do we invest in a Route A.2 spec + a torchao→MLX
-bridge" should be gated on a half-day experiment, not on
-literature alone.
-
-### Setup
-
-- **Base**: `_merged_bf16/` from baseline-1 (the SFT winner we already
-  trust at 70.63 %).
-- **Tool**: torchao directly, not via Unsloth's `qat_scheme`. Use
-  `torchao.quantization.qat.QATConfig` and pass a `filter_fn` that
-  matches **only** language-side `nn.Linear` modules:
-  `q_proj | k_proj | v_proj | o_proj | gate_proj | up_proj | down_proj`
-  under `language_model.layers.*`. Explicitly exclude
-  `vision_tower.*`, `embed_vision`, `audio_tower.*`, `embed_audio`,
-  `lm_head`, `embed_tokens`.
-- **Optimizer**: `adamw_torch` or `adamw_torch_fused`. Quantized
-  optimizers are outside this recipe.
-- **Training**: 500-1,000 steps QAT-aware cooldown on PlantNet-50k
-  subset, LR 5e-5, batch 16, grad-accum 1, single epoch fraction.
-- **Convert**: `quantize_(model, QATConfig(step="convert"))` →
-  torchao Int4WeightOnlyConfig output dir.
-- **Bridge (sanity, lossy)**: dequant the torchao int4 back to bf16
-  → feed through `mlx_vlm.convert -q --q-bits 4 --q-group-size 64
-  --q-mode affine`. This is **lossy and represents the lower bound**
-  of QAT's potential
-  on the MLX deploy path; if QAT helps, this experiment will
-  understate the help.
-- **Eval**: PlantNet n=2,870 paper-grade, plus quick eval on the
-  bnb-NF4 deploy path for cross-route comparison.
-
-### Decision matrix
-
-Compare R_QAT against R2 (GPTQModel w4g128 desc_act=True, 68.8 %):
-
-| Δ (R_QAT − R2) | Verdict |
-|---|---|
-| ≥ +1.0 pp | QAT hypothesis confirmed. Invest in Route A.2 spec + Path 1 (real torchao→MLX bridge). |
-| +0.3 to +1.0 pp | Marginal but cheap. Keep QAT cooldown as a Stage 3 deploy candidate. Skip from-scratch QAT (cost too high for the delta). Skip Path 1 bridge until B.1 bridge lands first. |
-| −0.3 to +0.3 pp | Inside noise. Conclusion: GPTQModel + desc_act is near-optimal PTQ for our model scale. Drop torchao QAT from the roadmap. |
-| < −0.3 pp | QAT regressed. Drop and document the empirical refutation. |
-
-Important: the lossy Path-2 bridge means an inside-noise result is
-**ambiguous** — could be "QAT didn't help" or "QAT helped but the
-re-quantization through mlx_vlm.convert erased it". A Δ ≥ +1.0 pp
-result, by contrast, is **unambiguous** in the positive direction.
-This asymmetry is acceptable for a gating experiment because we
-care about whether to invest more, not about the exact magnitude.
-
-### Cost
-
-- Cooldown training: ~1-2 h on 4090
-- Convert + lossy bridge: ~10 min
-- Eval (n=2,870 on 4090): ~1.5 h
-- Total: **< 4 h GPU time**, no new bridge code
-
-## 8. Open questions
-
-These are intentionally not answered in this doc; they are the
-follow-up work if §7 returns a positive signal.
+The final deploy path used post-training quantization rather than a
+torchao QAT route, so the remaining items are interpretation gaps, not
+an execution plan.
 
 ### Q1 — module-level mix for Gemma 4 VLM
 
-§4 is a priors-based recommendation, not an empirical one. The
-specific question we'd want to settle if §7 succeeds: at QAT
-convert time, is there value in keeping the **last few language
-decoder layers** at bf16 (analogous to `tune_last_n_vision_layers`
-but on the deploy side)? Apple's mlx-lm `dynamic_quant` does a
+§4 is a priors-based recommendation, not an empirical one. One
+remaining attribution question is whether keeping the **last few
+language decoder layers** at bf16 would dominate all-int4 language
+quantization. Apple's mlx-lm `dynamic_quant` does a
 sensitivity-weighted version of this; torchao supports it via
 per-module `filter_fn` exclusions.
 
@@ -297,9 +240,9 @@ If we keep using baseline-2-style QLoRA for iteration speed but
 want to deploy via a non-bnb backend (MLX, GPTQModel, GGUF), the
 adapter has to round-trip through bf16 merge first, and §3.2 says
 the merged bf16 carries QLoRA-base-induced fragility into the
-non-bnb PTQ. This may be why M2 = 22.5 %. Worth a controlled
-ablation: same QLoRA adapter, three deploys (bnb-NF4 / GPTQModel /
-MLX-INT4), and compare.
+non-bnb PTQ. This may be why M2 = 22.5 %. A controlled comparison
+would need the same QLoRA adapter deployed through bnb-NF4, GPTQModel,
+and MLX-INT4.
 
 ### Q3 — attribution of the deploy gap
 

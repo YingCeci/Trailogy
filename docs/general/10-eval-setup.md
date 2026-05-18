@@ -343,7 +343,7 @@ helpers wire this into the standard eval surface:
 
 | Script | Purpose |
 |---|---|
-| `quantization/scripts/run/eora_post_quant.py` | One-shot: calibrate EoRA on a quantized model (128×512 WikiText, ~28 min M5 Pro) → save adapter |
+| `quantization/scripts/run/eora_post_quant.py` | One-shot: calibrate EoRA on a quantized model (128×512 WikiText, Mac MLX runtime) → save adapter |
 | `quantization/scripts/run/eval_eora_only.py` | Eval a quantized base model + EoRA adapter, applied via `EoRALinear` wrapper. Skip the merge step for fast A/B. |
 | `quantization/scripts/run/merge_eora_into_mlx.py` | Fold EoRA into the deploy checkpoint — output is directly `mlx_vlm.load`-able. Used when shipping to iOS bundle. |
 

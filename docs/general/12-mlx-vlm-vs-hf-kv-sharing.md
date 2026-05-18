@@ -326,7 +326,7 @@ Same as Python. Shared layers' `kProj` / `vProj` never fire.
   but a value-mismatch tripwire on adapter export
   (`finetune/src/export_mlx.py`) would need to know not to expect them.
 
-## Action items (none urgent)
+## Optional cleanup notes
 
 - (optional) Add a `kv_shared_only=True` pass to `mlx-vlm` and
   `mlx-swift-lm` Gemma 4 to skip allocating the dead modules. Saves

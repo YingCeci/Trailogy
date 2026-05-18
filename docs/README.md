@@ -48,9 +48,9 @@ technical story:
 The following files are useful for reproduction or debugging, but they are
 not required to understand the project narrative:
 
-- Timeline logs: `general/08-*`, `general/09-*`.
-- Full sweep matrices: `finetune/05-*`, `quantization/B1-*`, `quantization/B2-*`.
-- Tooling investigations and superseded designs: `finetune/04-*`, `data_mix/A-*`, `data_mix/C-*`, `quantization/00-quantization-roadmap.md`.
+- Timeline logs: `general/09-*`.
+- Full sweep matrices: `quantization/B1-*`, `quantization/B2-*`.
+- Tooling investigations and superseded designs: `finetune/04-*`, `data_mix/A-*`, `data_mix/C-*`.
 
 ## Directory Map
 

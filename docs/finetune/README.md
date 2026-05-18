@@ -23,15 +23,12 @@ finetune on PlantNet-300K.
 - [`02-projector-mode.md`](02-projector-mode.md): opt-in projector tuning.
 - [`03-vision-mode.md`](03-vision-mode.md): opt-in vision-tower tuning.
 - [`07-anti-forgetting-regularization.md`](07-anti-forgetting-regularization.md): deeper KL/L2 design notes.
-- [`09-kl-is-overkill-at-small-rank.md`](09-kl-is-overkill-at-small-rank.md): supporting ablation for dropping KL.
 - [`10-no-text-prefix-and-bigger-rank.md`](10-no-text-prefix-and-bigger-rank.md): later ablation record.
 
 ## Historical / Debug Notes
 
 - [`04-gemma-tuner-investigation.md`](04-gemma-tuner-investigation.md)
-- [`05-sft-sweep-plan.md`](05-sft-sweep-plan.md)
 - [`06-bnb-vs-torchao-sft.md`](06-bnb-vs-torchao-sft.md)
-- [`08-lr-and-adapter-update-magnitude.md`](08-lr-and-adapter-update-magnitude.md)
 
 ## Related
 
