@@ -16,6 +16,7 @@ camera-state prefix wiring) is in
 
 | File | Covers |
 |---|---|
+| [`00-datamix-roadmap.md`](00-datamix-roadmap.md) | **Strategic roadmap.** Why we built data_mix in the first place: the three independent levers (distribution diversity, KL+L2 regularizers, camera-state prefix) and how data_mix is the diversity lever. v3 → v4 dispatch transition. |
 | [`01-data-prefix.md`](01-data-prefix.md) | **v4 camera-state prefix gate** (`[camera=on]` / `[camera=off]`, dispatched on image presence). Full plumbing trace from config → JSONL record → chat-template tokens. Required reading for anyone touching the iOS side. |
 | [`02-bucket-design.md`](02-bucket-design.md) | Per-bucket implementation contracts (Plant / LLaVA / smoltalk / Negative / offline_qa). Unified record schema. v1 dummy-image trick vs v2 native `image=None` routing. |
 | [`03-orchestrator-and-build.md`](03-orchestrator-and-build.md) | `build_mix.sh` + `mix.py` orchestrator. Env-var-driven storage roots. Idempotence + determinism guarantees. |
@@ -25,6 +26,13 @@ camera-state prefix wiring) is in
 | File | Covers |
 |---|---|
 | [`B-mix-50k-v2.md`](B-mix-50k-v2.md) | **Production canonical.** Current 50K mix (Plant 44 % / LLaVA 30 % / smoltalk 15 % / Negative 10 % + offline_qa persona). Per-bucket sizes, finetune-side wiring, reproduction command. |
+
+### Historical / superseded
+
+| File | Covers |
+|---|---|
+| [`A-mix-20k-v1.md`](A-mix-20k-v1.md) | v1 20K mix — first version of the multi-bucket corpus, with the dummy-image trick. Superseded by B-mix-50k-v2. |
+| [`C-v3-task-tag-eval-checkpoint-2000.md`](C-v3-task-tag-eval-checkpoint-2000.md) | v3 source-keyed task-tag dispatch (deprecated). Replaced by v4 image-presence dispatch in [`01-data-prefix.md`](01-data-prefix.md). |
 
 ## Reading order
 

@@ -23,7 +23,13 @@ finetune on PlantNet-300K.
 
 | File | What it covers |
 |---|---|
+| [`04-gemma-tuner-investigation.md`](04-gemma-tuner-investigation.md) | Why we did not use `gemma-tuner-multimodal` — exploration finding that pushed us to the bespoke pipeline. |
+| [`05-sft-sweep-plan.md`](05-sft-sweep-plan.md) | Two-stage sweep plan across r/α/dropout/KL/L2 + naming conventions, run-config matrix, and stop-conditions. |
 | [`06-bnb-vs-torchao-sft.md`](06-bnb-vs-torchao-sft.md) | Decision doc: bnb 4-bit (QLoRA, train-VRAM tool) vs torchao QAT (deploy-accuracy tool). Module-level matrix for Gemma 4 VLM. |
+| [`07-anti-forgetting-regularization.md`](07-anti-forgetting-regularization.md) | Deep-dive on the anti-forgetting stack: KL output-distribution penalty + L2 weight anchor + camera-state prefix gate. Designed full, shipped pared-down (see `03-anti-forgetting-and-final-recipe.md` for the shipped subset). |
+| [`08-lr-and-adapter-update-magnitude.md`](08-lr-and-adapter-update-magnitude.md) | S_step framework — accounting for per-step adapter update magnitude. Why higher rank does not always mean more drift. |
+| [`09-kl-is-overkill-at-small-rank.md`](09-kl-is-overkill-at-small-rank.md) | Why KL turned out unnecessary at r=8 / α=8: empirical KL-rank sweep, the "small-rank LoRA is self-anchoring" argument. |
+| [`10-no-text-prefix-and-bigger-rank.md`](10-no-text-prefix-and-bigger-rank.md) | Late-stage ablation: dropping the text-side `[camera=off]` prefix + pushing rank to 16. What changes, what does not. |
 
 ## Reading order
 

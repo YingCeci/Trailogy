@@ -17,6 +17,7 @@ corresponding link target below.
 | Technical Challenge #3 — Catastrophic forgetting | [`../finetune/03-anti-forgetting-and-final-recipe.md`](../finetune/03-anti-forgetting-and-final-recipe.md) + [`../data_mix/02-bucket-design.md`](../data_mix/02-bucket-design.md) |
 | Technical Challenge #4 — Offline honesty | [`../data_mix/01-data-prefix.md`](../data_mix/01-data-prefix.md) (offline_qa bucket) |
 | Eval methodology | [`10-eval-setup.md`](10-eval-setup.md) |
+| Final production-candidate eval (shipped model) | [`16-final-model-eval.md`](16-final-model-eval.md) |
 | What broke and how we noticed | [`15-postmortems.md`](15-postmortems.md) |
 
 ## All docs in this directory
@@ -50,6 +51,7 @@ corresponding link target below.
 
 - [`14-package-versions-and-known-bugs.md`](14-package-versions-and-known-bugs.md) — tested package versions and the known bugs in the stack (the transformers 5.5→5.8 silent PEFT-loading bug, the peft + gptqmodel dispatcher patch, etc.).
 - [`15-postmortems.md`](15-postmortems.md) — dated postmortems rolled up: overfit-memorization → save→reload, mlx quantization, mlx-on-Linux, train/eval data mismatch, eval-pipeline silent failures, HF trainer LR resume.
+- [`16-final-model-eval.md`](16-final-model-eval.md) — production-candidate eval rollup across plant_300 / mmlu_50 / aime_20 / llava_40 / refusal_20 / NA-tree_100, with the rationale for shipping the r8-a8-nokl + NA-tree stage-2 adapter.
 
 ## Conventions
 

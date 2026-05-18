@@ -15,6 +15,7 @@ B.2 (MLX deploy) live alongside.
 | File | Covers |
 |---|---|
 | [`00-quantization-report-pub.md`](00-quantization-report-pub.md) | **Overview + headline results.** Start here. Size budget, route summary, the recommended deploy artifact, and links into the per-route detail files. |
+| [`00-quantization-roadmap.md`](00-quantization-roadmap.md) | **Route picker.** Two-route plan (Route A QLoRA / Route B PTQ), method matrix, decision criteria, calibration-data design, cross-backend validation plan. |
 | [`01-baselines.md`](01-baselines.md) | Reference models on the **un-SFT'd** base: `mlx-community/gemma-4-e2b-it-4bit` (3.58 GB), `unsloth/gemma-4-E2B-it-UD-MLX-4bit` (HEAD 4.52 GB, `9ee11f5` 3.55 GB). |
 | [`02-methods-and-eval.md`](02-methods-and-eval.md) | What each method does + how we measure it. Quick test (n=300) vs full eval. |
 | [`02b-mlx-torch-convert.md`](02b-mlx-torch-convert.md) | HF transformers ≥ 5.8 ↔ `mlx_vlm.convert` interop. The KV-shared K/V missing-tensors gotcha, bridge strategies, why the "PEFT merge → mlx_vlm convert" recipe broke on the latest HF. |
@@ -39,7 +40,9 @@ B.2 (MLX deploy) live alongside.
 
 | File | Covers |
 |---|---|
+| [`B2-research-spec.md`](B2-research-spec.md) | Research spec for Route B.2 — what we set out to measure (calibration-data effect, EoRA rank sweep, deploy-side parity). |
 | [`B2-sft-results.md`](B2-sft-results.md) | Per-variant detail for **MLX** runs on our SFT'd model — the iOS-deployable candidates. EoRA r=64 closes the gap to bf16. |
+| [`B2-sft-r8a8-13k-results.md`](B2-sft-r8a8-13k-results.md) | Latest SFT'd r8/α8 step-13k results across the M-method matrix on PlantNet. Numbers on the actual deploy candidate. |
 
 ## Reading order
 
