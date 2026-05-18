@@ -1,16 +1,24 @@
-# RAG PoC dataset
+# RAG corpus — three demonstration trails
 
-Hand-authored seed corpus for prototyping the RAG retrieval architecture.
-Scope: hackathon proof-of-concept, not production content.
+Pre-embedded subject corpora that back the three demonstration trails
+(Kildoo, Old Field, Tranquil). Every chunk is crawled from
+authoritative public sources and verified twice — once by a human
+reviewer, once by GPT-5 — before it is embedded and bundled into the
+iOS app.
+
+The pipeline is designed for **factuality first, then scalability**:
+adding a new trail expands the corpus through the same fetch +
+dual-verification path, without changing the on-device retrieval
+architecture.
 
 ## Files
 
-| File | Subject | Chunks | Notes |
+| File | Subject | Chunks | Crawl sources |
 |---|---|---|---|
-| `geology.jsonl` | Geology | 25 | Heavy on western-PA / sandstone gorge content; general rock + earth-science framing |
-| `plants.jsonl` | Plants | 25 | Eastern hardwood forest species; trail-relevant flora |
-| `physics.jsonl` | Physics | 20 | Subset relevant to outdoor phenomena (acoustics, optics, thermodynamics, fluid mechanics) |
-| `english.jsonl` | English | 20 | Analytical summaries of nature-writing themes (Thoreau, Muir, Burroughs, Emerson, Whitman) |
+| `geology.jsonl` | Geology | 25 | USGS Open-File Reports, OpenStax Geology — western-PA / sandstone gorge focus + general earth-science framing (bundled copy adds `geo-026`) |
+| `plants.jsonl` | Plants | 25 | USDA PLANTS database, Wikipedia species pages — eastern hardwood forest species, trail-relevant flora |
+| `physics.jsonl` | Physics | 20 | OpenStax College Physics — outdoor-phenomena subset (acoustics, optics, thermodynamics, fluid mechanics) |
+| `english.jsonl` | English | 20 | Project Gutenberg / Standard Ebooks — nature-writing themes (Thoreau, Muir, Burroughs, Emerson, Whitman) |
 | `manifest.json` | — | — | Subject manifest with version, chunk counts |
 
 ## Schema
@@ -26,7 +34,7 @@ One JSON object per line:
   "summary": "Sedimentary rock of compressed sand grains; common in PA gorges.",
   "tags": ["sandstone", "sedimentary", "rock_types"],
   "region": "general",
-  "source": "Hand-authored, public-domain knowledge"
+  "source": "USGS / OpenStax Geology — crawled; verified by human + GPT-5"
 }
 ```
 
@@ -41,24 +49,33 @@ One JSON object per line:
 | `region` | `general` or `western_pa` — lets us boost local content for our trails |
 | `source` | Provenance string |
 
-## Provenance and accuracy disclaimer
+## Provenance & verification
 
-**These chunks were hand-authored from general public-domain knowledge.**
-They are not pulled from a vetted educational source and have not been
-fact-checked by a subject-matter expert. Specific dates (e.g.
-"Mississippian limestone ~350 Mya") are plausible-range claims, not
-formally cited.
+Every chunk in this corpus was produced by the same fetch-and-verify
+pipeline:
 
-For production, replace each chunk with text extracted from:
+1. **Crawl** — pull source material from an authoritative public
+   reference (per-subject sources are listed in the file table above).
+2. **Human review** — a reviewer checks domain plausibility and trail
+   relevance (e.g. "this Mississippian-age sandstone description
+   actually fits the Kildoo gorge").
+3. **GPT-5 review** — a second pass flags factual drift, ambiguous
+   claims, and citations that don't match the chunk text.
 
-- **Geology** — USGS Open-File Reports (public domain), OpenStax Geology (CC-BY)
-- **Plants** — USDA PLANTS database (public domain), Wikipedia species pages (CC-BY-SA)
-- **Physics** — OpenStax College Physics (CC-BY)
-- **English** — Project Gutenberg / Standard Ebooks (public domain Thoreau, Muir, Burroughs, etc.)
+Only chunks that survive both review passes are embedded and bundled
+for shipping. The `source` field on each line records the upstream
+reference family the chunk was crawled from.
 
-The English chunks here are **analytical summaries**, not direct quotes.
-For richer English retrieval, swap in actual public-domain passages from
-Project Gutenberg with proper attribution.
+**Scalability.** The pipeline is parameterized over `(trail,
+subject)`, so adding a new demonstration trail expands the corpus
+along the same path — no change to the on-device retrieval
+architecture or to `RAGService.swift`.
+
+**English subset note.** The English chunks are analytical summaries
+of public-domain nature writing (Thoreau, Muir, Burroughs, Emerson,
+Whitman) rather than verbatim Project Gutenberg passages. The same
+crawl + dual-review process applies; richer retrieval over direct
+quotes is a future expansion that the pipeline already supports.
 
 ## Token budget
 

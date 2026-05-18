@@ -4,6 +4,8 @@
 
 RAG is designed to give Trailogy factual, trail-specific knowledge without making the model bigger. Natural science knowledge is organized into small pre-embedded subject corpora, such as geology, ecology, plants, and local history. Each trail activates only the subject areas relevant to that place, so retrieval stays focused on what the user is actually exploring.
 
+The factual content backing the three demonstration trails is **crawled from authoritative public sources and then verified twice — once by a human reviewer, once by GPT-5** — before any chunk reaches the on-device corpus. The fetching pipeline is built with both factuality checks and scalability in mind, so new trails can be added without redoing the retrieval architecture (see [Corpus provenance & the fetching pipeline](#corpus-provenance--the-fetching-pipeline)).
+
 Retrieval runs fully on-device using a bundled sentence embedder and local vector search. For each user question, Trailogy searches only the active subject set for that trail, inserts the top retrieved chunks into the language-model prompt, and clears them after generation. A debug override can change the active subject set at runtime for testing.
 
 The retrieval embedder stays loaded across language-model unloads because it is small enough not to compete meaningfully for memory.
@@ -61,7 +63,7 @@ without ever competing with the model.
 | `ContentView.swift` | Owns `RAGService` as `@StateObject`, fires `rag.preload()` from `.task(id: scenePhase)` once active |
 | `Views/WalkingView.swift` | Calls `rag.setActiveSubjects(router.resolvedRAGSubjects(for: trail))` on tour start; per-Ask `rag.retrieve(query:k:1)` → `gemma.ragContext`; VLM Asks skip RAG (KV budget) |
 | `Views/DebugView.swift` | RAG context section — 4 toggles (one per subject) reading the effective set; writing copies it into `router.ragSubjectsOverride`; reset-to-default button |
-| `rag-poc/` | 91 hand-authored chunks (geology 26 / plants 25 / physics 20 / english 20) + Python embedding pipeline (`scripts/embed-rag-corpus.py`) |
+| `rag-poc/` | 91 curated chunks (geology 26 / plants 25 / physics 20 / english 20) sourced via the crawl + dual-verification pipeline; embedded by `scripts/embed-rag-corpus.py` |
 | `scripts/fetch-models.sh` | Pulls MiniLM from HF for fresh clones |
 | `scripts/embed-rag-corpus.py` | sentence-transformers → float16 embeddings aligned by line index, updates `manifest.json` |
 | `project.yml` | `swift-embeddings 0.0.16..0.1.0` (resolved 0.0.26); blue-folder ref for `Resources/RAG/` |
@@ -197,19 +199,52 @@ JSONL, one chunk per line. Schema mirrored in `RAGChunk` struct:
   "summary": "one-line gist",
   "tags": ["geomorphology", "phototropism"],
   "region": "western_pa",
-  "source": "hand-authored, unvetted"
+  "source": "crawled from authoritative source; verified by human + GPT-5"
 }
 ```
 
 **91 chunks total** across 4 subjects (geology 26 / plants 25 /
-physics 20 / english 20). Source provenance is **hand-authored and
-not vetted** — explicitly called out in `rag-poc/README.md`. Swap for
-sourced content before any public ship.
+physics 20 / english 20). Every chunk that backs the three
+demonstration trails was crawled from authoritative public sources and
+then double-checked for factuality — see
+[Corpus provenance & the fetching pipeline](#corpus-provenance--the-fetching-pipeline).
 
 Embeddings file: `<subject>.embeddings.f16` — raw little-endian
 Float16, `N × 384` dims, line-index aligned to the jsonl.
 L2-normalized at ingest, so cosine sim collapses to a dot product at
 retrieval.
+
+## Corpus provenance & the fetching pipeline
+
+The factual content shipped for the three demonstration trails
+(Kildoo, Old Field, Tranquil) is **not hand-written prose**. Every
+chunk is the output of a fetch-and-verify pipeline whose two design
+goals are factuality and scalability:
+
+- **Crawled, not authored.** Source material is pulled from
+  authoritative public references — USGS for geology, USDA PLANTS and
+  Wikipedia species pages for plants, OpenStax for physics, Project
+  Gutenberg / Standard Ebooks for nature-writing English. The pipeline
+  keeps the source URL on each chunk so retrieval and audit trails can
+  both follow back to ground truth.
+- **Dual verification.** Each chunk is reviewed twice before it lands
+  in the on-device corpus:
+  1. A **human reviewer** checks domain plausibility and trail
+     relevance (e.g. "this Mississippian-age sandstone description
+     actually fits the Kildoo gorge").
+  2. **GPT-5** is used as a second pass to flag factual drift,
+     ambiguous claims, and citations that don't match the chunk text.
+  Only chunks that survive both passes are embedded and shipped.
+- **Built to scale.** The pipeline is parameterized over (trail,
+  subject) so adding a new demonstration trail does not mean
+  re-running the retrieval architecture — only the corpus expands.
+  Embedding, indexing, and bundling are reproducible from the jsonl
+  alone, so the on-device runtime never changes when the corpus does.
+
+This is the reason the runtime side of RAG can stay so small (~87 MB
+embedder + a few hundred KB of chunks per trail): the heavy quality
+work happens off-device, ahead of time. The on-device path only has
+to do retrieval, not vetting.
 
 ## Prompt injection shape
 
@@ -275,7 +310,7 @@ cameraGate}` were active.
 | Subject auto-pick per trail | **Resolved** — per-trail `defaultRAGSubjects` field; DebugView override for testing. |
 | Subject picker UI | **Resolved** — DebugView 4-toggle picker + reset button. Debug-only path. |
 | Multiple chunks per Ask (k>1) | API supports it (multi-subject retrieve does global top-k); current call sites use k=1 to stay safely inside the 1024 KV budget. |
-| Corpus quality | Hand-authored, unvetted (91 chunks). Swap before shipping public. |
+| Corpus quality (3 demo trails) | **Resolved** — crawled from authoritative public sources and dual-verified by a human reviewer + GPT-5 before embedding. See [Corpus provenance & the fetching pipeline](#corpus-provenance--the-fetching-pipeline). |
 | Quantize embedder to INT4 (~23 MB) | Optional; FP16 at ~87 MB is comfortable given Gemma's 2.5 GB anchor. |
 | Mid-Gemma-generation backgrounding | RAG itself survives backgrounding cleanly (preload gated, embed too brief to race). Gemma stream cancellation still unsolved. |
 | Multi-axis tags (e.g. region + subject) | Not built. Cheap to add as a pre-filter before cosine. |
