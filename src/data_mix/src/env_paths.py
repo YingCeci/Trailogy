@@ -28,7 +28,24 @@ class Paths:
                                #     sibling val.jsonl of plantnet_jsonl.
 
 
-def resolve_paths() -> Paths:
+def _default_output_root(config_path: Path | None) -> Path:
+    """Derive the default output dir from the config filename stem.
+
+    ``mix-50k.yaml`` -> ``src/finetune/data/mix-50k``.
+    ``mix-50k-plantnet.yaml`` -> ``src/finetune/data/mix-50k-plantnet``.
+
+    Falls back to ``mix-50k`` when no config_path is given (legacy
+    callers that don't pass it through; tests that patch resolve_paths
+    directly should also patch this).
+    """
+    stem = config_path.stem if config_path is not None else "mix-50k"
+    return SRC_ROOT / "finetune" / "data" / stem
+
+
+def resolve_paths(config_path: Path | None = None) -> Paths:
+    """Resolve storage paths. ``config_path``, when given, drives the
+    default ``output_root`` so each yaml config writes to its own
+    sibling-of-config output dir (yaml-stem == output-dir-name)."""
     hf_home_env = os.environ.get("HF_HOME")
     hf_home = Path(hf_home_env).resolve() if hf_home_env else None
 
@@ -39,7 +56,7 @@ def resolve_paths() -> Paths:
 
     output_root = Path(
         os.environ.get("DATA_MIX_OUTPUT_ROOT")
-        or (SRC_ROOT / "finetune" / "data" / "mix-50k-plantnet")
+        or _default_output_root(config_path)
     ).resolve()
 
     plantnet_jsonl = Path(

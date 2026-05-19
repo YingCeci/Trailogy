@@ -408,10 +408,12 @@ def test_output_loads_through_finetune_data_pipeline(patched_mix):
 
     mix_mod.build_mix(patched_mix["config"])
 
-    # `finetune/` is a sibling of `data_mix/`; both live under hikeCompanion.
-    from data_mix.src.env_paths import HIKECOMPANION_ROOT
+    # ``src/finetune/`` is a sibling of ``src/data_mix/`` after the
+    # post-restructure layout (was ``finetune/`` next to ``data_mix/``
+    # at the repo root pre-restructure).
+    from data_mix.src.env_paths import SRC_ROOT
 
-    finetune_root = HIKECOMPANION_ROOT / "finetune"
+    finetune_root = SRC_ROOT / "finetune"
     assert finetune_root.is_dir(), f"missing {finetune_root}"
     if str(finetune_root) not in sys.path:
         sys.path.insert(0, str(finetune_root))

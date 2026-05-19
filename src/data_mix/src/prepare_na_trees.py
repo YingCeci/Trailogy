@@ -52,6 +52,7 @@ Output layout::
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import random
@@ -183,7 +184,14 @@ def main(argv: list[str] | None = None) -> int:
         if not imgs:
             log.warning("  %s: no images, skipping species.", slug)
             continue
-        rng_local = random.Random(args.seed + hash(slug) % 100000)
+        # Stable per-slug seed: Python's builtin ``hash()`` is salted per
+        # interpreter run, so reusing the same ``--seed`` across machines
+        # / Python processes would otherwise produce different train/val/
+        # test slices. Hash via sha256 to keep it reproducible.
+        slug_offset = int(
+            hashlib.sha256(slug.encode("utf-8")).hexdigest()[:8], 16
+        ) % 100000
+        rng_local = random.Random(args.seed + slug_offset)
         idxs = list(range(len(imgs)))
         rng_local.shuffle(idxs)
 
