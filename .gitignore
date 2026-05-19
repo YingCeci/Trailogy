@@ -96,21 +96,13 @@ wandb/
 # to track (large, regenerated every run).
 gptq_log_*.log
 
-# data_mix local default storage (used when env vars unset).
-# Both the legacy top-level path and the post-restructure src/ path
-# are covered.
+# Trailogy convention: all generated artefacts live OUTSIDE the repo
+# (sibling-of-repo data/ dir; see src/data_mix/src/env_paths.py for
+# the resolved layout). The legacy in-repo paths below are kept as
+# defense-in-depth in case someone overrides defaults to write inside
+# the working tree.
 data_mix/_local/
 src/data_mix/_local/
-
-# iNaturalist fetch cache from src/data_mix/scripts/na_tree_fetch.py.
-# Default --output-dir is ./inaturalist_na_trees/ relative to wherever
-# the script is launched. The directory contains absolute paths in
-# observations.jsonl / fetch_report.json — never commit. If a user
-# overrides --output-dir to a path inside the repo, they need to
-# extend this rule themselves.
 inaturalist_na_trees/
-
-# Eyeball-test JSON results from src/data_mix/scripts/test_na_trees.py
-# default --results-dir (assets/run_results/na_trees_eyeball/).
-# Contains absolute model paths in the saved JSON.
+inaturalist_na_trees_prepared/
 assets/run_results/

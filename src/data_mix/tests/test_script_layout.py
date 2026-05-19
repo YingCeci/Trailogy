@@ -50,3 +50,67 @@ def test_mix_50k_default_is_na_trees_without_plant_bucket() -> None:
     assert cfg.plant_val == 0
     assert cfg.na_trees_train > 0
     assert cfg.na_trees_train_jsonl is not None
+
+
+def test_mix_50k_na_trees_paths_resolve_outside_repo() -> None:
+    """The default mix-50k.yaml must point at na_trees JSONLs that live
+    OUTSIDE the repo (Trailogy storage convention). Train data inside
+    the working tree would silently pollute commits."""
+    from data_mix.src.mix import _load_config
+    from data_mix.src.env_paths import HIKECOMPANION_ROOT
+
+    cfg = _load_config(DATA_MIX_DIR / "configs/mix-50k.yaml")
+
+    # Mirror the resolution mix.py does: relative paths join against
+    # HIKECOMPANION_ROOT (the repo root). The resolved path's parents
+    # must include HIKECOMPANION_ROOT.parent (= <repo>'s parent) but
+    # NOT HIKECOMPANION_ROOT itself once normalised.
+    repo_root = HIKECOMPANION_ROOT.resolve()
+    for raw_path in (cfg.na_trees_train_jsonl, cfg.na_trees_val_jsonl):
+        assert raw_path is not None
+        resolved = (repo_root / raw_path).resolve()
+        try:
+            resolved.relative_to(repo_root)
+        except ValueError:
+            # Good — path escapes the repo root.
+            pass
+        else:
+            raise AssertionError(
+                f"na_trees JSONL must live OUTSIDE the repo; "
+                f"{raw_path!r} resolves to {resolved} which is inside "
+                f"{repo_root}."
+            )
+
+
+def test_external_data_root_defaults_to_sibling_of_repo(monkeypatch) -> None:
+    """``external_data_root()`` defaults to ``<repo>/../data`` so all
+    generated artefacts (fetch, prepare, build_mix output, image cache)
+    stay out of the repo working tree."""
+    from data_mix.src.env_paths import (
+        DEFAULT_EXTERNAL_DATA_ROOT,
+        HIKECOMPANION_ROOT,
+        external_data_root,
+    )
+
+    monkeypatch.delenv("TRAILOGY_DATA_ROOT", raising=False)
+    assert DEFAULT_EXTERNAL_DATA_ROOT == HIKECOMPANION_ROOT.parent / "data"
+    assert external_data_root() == DEFAULT_EXTERNAL_DATA_ROOT.resolve()
+
+
+def test_resolve_paths_writes_outside_repo_by_default(monkeypatch) -> None:
+    """resolve_paths() must default both ``output_root`` and
+    ``image_root`` to the external data root."""
+    from data_mix.src.env_paths import (
+        external_data_root, resolve_paths,
+    )
+
+    monkeypatch.delenv("DATA_MIX_OUTPUT_ROOT", raising=False)
+    monkeypatch.delenv("DATA_MIX_IMAGE_ROOT", raising=False)
+    monkeypatch.delenv("TRAILOGY_DATA_ROOT", raising=False)
+
+    ext = external_data_root()
+    paths = resolve_paths(
+        config_path=DATA_MIX_DIR / "configs/mix-50k.yaml",
+    )
+    assert paths.output_root == (ext / "mix-50k").resolve()
+    assert paths.image_root == (ext / "_image_cache").resolve()

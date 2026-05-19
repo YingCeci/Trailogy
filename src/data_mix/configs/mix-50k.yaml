@@ -22,15 +22,19 @@
 # the bucket targets sum to 50,000.
 #
 # na_trees source: produced by
-#   1. src/data_mix/scripts/na_tree_fetch.py  (downloads images +
-#      writes per-split JSONLs to $NA_TREES_ROOT/{train,val,test}.jsonl)
-#   2. src/data_mix/src/prepare_na_trees.py   (re-runs the species
-#      description join + 960x672 resize so the JSONL matches the
-#      finetune schema; produces train/val/test JSONLs under its own
-#      --output_dir)
+#   1. src/data_mix/scripts/na_tree_fetch.py  -> writes per-split
+#      images + raw metadata to $TRAILOGY_DATA_ROOT/inaturalist_na_trees/
+#      (default $TRAILOGY_DATA_ROOT = <repo>/../data/, OUTSIDE the repo).
+#   2. python -m data_mix.src.prepare_na_trees \\
+#          --source_root  $TRAILOGY_DATA_ROOT/inaturalist_na_trees \\
+#          --output_dir   $TRAILOGY_DATA_ROOT/inaturalist_na_trees_prepared
+#      -> joins each image with assets/na_trees/descriptions.yaml and
+#      emits training-schema JSONLs ({image, conversations}).
 #
-# Either output layout works as long as the JSONL paths below resolve.
-# Paths are interpreted relative to the repo root when not absolute.
+# mix-build storage convention: all generated artefacts live OUTSIDE the
+# repo. Paths below are written as ``../data/...`` (relative to the repo
+# root, interpreted via HIKECOMPANION_ROOT in mix.py). Override via
+# absolute paths or via the env vars consumed by env_paths.py.
 #
 # PlantNet bucket is OMITTED (no ``plant:`` block). mix.py treats this
 # as plant_train=plant_val=0 and skips the PlantNet sampler entirely.
@@ -41,8 +45,8 @@ source: llava
 na_trees:
   train: 22500
   val:   1125
-  train_jsonl: "src/finetune/data/na_trees/train.jsonl"
-  val_jsonl:   "src/finetune/data/na_trees/val.jsonl"
+  train_jsonl: "../data/inaturalist_na_trees_prepared/train.jsonl"
+  val_jsonl:   "../data/inaturalist_na_trees_prepared/val.jsonl"
 
 llava:
   train: 15000

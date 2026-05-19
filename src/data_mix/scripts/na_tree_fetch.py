@@ -34,9 +34,11 @@ What this script does on top of the reference:
      Latin name). Split assignment is on a per-OBSERVATION key (so all
      photos of the same observation always land in the same split — no
      train/test leakage from near-duplicate frames of one plant).
-  3. The default ``--output-dir`` is ``./inaturalist_na_trees/``,
-     relative to the working directory, **outside the repo**. The
-     directory is created on first run.
+  3. The default ``--output-dir`` is ``<repo>/../data/inaturalist_na_trees/``,
+     a sibling of the repo (the Trailogy convention; matches
+     ``data_mix.src.env_paths`` defaults). Override with ``--output-dir``,
+     or relocate the whole external data root via the
+     ``TRAILOGY_DATA_ROOT`` env var consumed by env_paths.
 
 Usage::
 
@@ -93,9 +95,16 @@ DEFAULT_PARAMS: dict[str, Any] = {
     "order":         "desc",
 }
 
-# Default cache lives OUTSIDE the repo (relative to cwd, not script
-# location). The user keeps the bytes wherever they invoke this script.
-DEFAULT_OUTPUT_DIR = Path("./inaturalist_na_trees")
+# Default cache lives OUTSIDE the repo at ``<repo>/../data/inaturalist_na_trees/``
+# (sibling-of-repo convention shared with env_paths.py). Override via
+# the ``--output-dir`` CLI flag or by symlinking ``<repo>/../data/`` to
+# wherever real storage lives.
+#
+# script path: <repo>/src/data_mix/scripts/na_tree_fetch.py
+#   parents[3] = <repo>
+#   parents[3].parent = <repo>'s parent (= external data root parent)
+_SCRIPT_REPO = Path(__file__).resolve().parents[3]
+DEFAULT_OUTPUT_DIR = _SCRIPT_REPO.parent / "data" / "inaturalist_na_trees"
 
 # Default 80/10/10 split, mirrors the per-species counts in the legacy
 # prepare_na_trees recipe (40 train / 5 val / 5 test out of 50).
@@ -271,7 +280,9 @@ def main(argv: list[str] | None = None) -> int:
         help=f"Top-level output dir (kept OUTSIDE the repo). "
              f"Contains observations.jsonl, fetch_report.json, and "
              f"train/val/test/<slug>/<obs>_<idx>.jpg subtrees. "
-             f"Default: {str(DEFAULT_OUTPUT_DIR)!r}.",
+             f"Default: <repo>/../data/inaturalist_na_trees/ "
+             f"(resolved at script-load time to "
+             f"{str(DEFAULT_OUTPUT_DIR)!r}).",
     )
     # --- Geographic + taxon filter (defaults MUST match
     #     DEFAULT_PARAMS / upstream reference). ---

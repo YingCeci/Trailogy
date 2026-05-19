@@ -14,12 +14,14 @@ CONFIG="${CONFIG:-${DATA_MIX_DIR}/configs/mix-50k.yaml}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
+_EXTERNAL_DATA_DEFAULT="$(cd "${SRC_ROOT}/.." && pwd)/data"
+
 echo "== data_mix build =="
 echo "HF_HOME              = ${HF_HOME:-<unset, using huggingface_hub default>}"
-echo "DATA_MIX_IMAGE_ROOT  = ${DATA_MIX_IMAGE_ROOT:-<unset, will fall back to ${DATA_MIX_DIR}/_local/images>}"
-echo "DATA_MIX_OUTPUT_ROOT = ${DATA_MIX_OUTPUT_ROOT:-<unset, will fall back to per-config default (mix.py)>}"
-echo "PLANTNET_JSONL       = ${PLANTNET_JSONL:-<unset; required only when the chosen CONFIG has plant.train > 0>}"
-echo "NA_TREES_TRAIN_JSONL = ${NA_TREES_TRAIN_JSONL:-<set via na_trees.train_jsonl in the CONFIG file>}"
+echo "TRAILOGY_DATA_ROOT   = ${TRAILOGY_DATA_ROOT:-<unset, default ${_EXTERNAL_DATA_DEFAULT}>}"
+echo "DATA_MIX_IMAGE_ROOT  = ${DATA_MIX_IMAGE_ROOT:-<unset, default <data_root>/_image_cache>}"
+echo "DATA_MIX_OUTPUT_ROOT = ${DATA_MIX_OUTPUT_ROOT:-<unset, default <data_root>/<config-stem>/>}"
+echo "PLANTNET_JSONL       = ${PLANTNET_JSONL:-<unset; required only when CONFIG has plant.train > 0>}"
 echo "CONFIG               = ${CONFIG}"
 echo "PYTHON_BIN           = ${PYTHON_BIN}"
 echo
@@ -46,7 +48,8 @@ if [[ "${BUILD_MIX_SKIP_PLANTNET_PREFLIGHT:-0}" != "1" ]]; then
     fi
   fi
   if [[ "${PLANT_USED}" == "1" ]]; then
-    RESOLVED_PLANTNET="${PLANTNET_JSONL:-${SRC_ROOT}/finetune/data/english-desc-v2/train.jsonl}"
+    _DEFAULT_PLANTNET="${TRAILOGY_DATA_ROOT:-${_EXTERNAL_DATA_DEFAULT}}/english-desc-v2/train.jsonl"
+    RESOLVED_PLANTNET="${PLANTNET_JSONL:-${_DEFAULT_PLANTNET}}"
     if [[ ! -f "${RESOLVED_PLANTNET}" ]]; then
       echo "ERROR: ${CONFIG} declares a non-zero plant bucket but" >&2
       echo "       PlantNet JSONL is not at ${RESOLVED_PLANTNET}" >&2

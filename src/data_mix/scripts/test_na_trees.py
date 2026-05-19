@@ -172,17 +172,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     # script path: <repo>/src/data_mix/scripts/test_na_trees.py
     #   parents[3] -> <repo>
+    #   parents[3].parent -> <repo>'s parent (== external data root parent)
     _REPO_ROOT = Path(__file__).resolve().parents[3]
+    _EXTERNAL = _REPO_ROOT.parent / "data"
     ap.add_argument(
         "--images-dir",
         type=Path,
-        default=_REPO_ROOT / "src" / "data_mix" / "_local" / "na_trees",
+        default=_EXTERNAL / "inaturalist_na_trees" / "test",
         help=(
             "Directory of test images. Subfolder layout "
             "(<slug>/<N>.jpg) auto-detected; falls back to flat "
-            "<slug>-<N>.<ext>. Default: "
-            "<repo>/src/data_mix/_local/na_trees (produced by "
-            "na_tree_fetch.py)."
+            "<slug>-<N>.<ext>. Default points at the held-out test "
+            "split produced by na_tree_fetch.py: "
+            "<repo>/../data/inaturalist_na_trees/test/."
         ),
     )
     ap.add_argument(
@@ -190,17 +192,17 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=_REPO_ROOT / "assets" / "na_trees" / "descriptions.yaml",
         help=(
-            "Optional yaml of species → {common_name, species, ...} for "
-            "richer match scoring. Default: "
+            "Optional yaml of species -> {common_name, species, ...} "
+            "for richer match scoring. Default: "
             "<repo>/assets/na_trees/descriptions.yaml"
         ),
     )
     ap.add_argument(
         "--results-dir",
         type=Path,
-        default=_REPO_ROOT / "assets" / "run_results" / "na_trees_eyeball",
+        default=_EXTERNAL / "run_results" / "na_trees_eyeball",
         help="Where to write per-run JSON outputs. Default: "
-             "<repo>/assets/run_results/na_trees_eyeball/",
+             "<repo>/../data/run_results/na_trees_eyeball/.",
     )
     ap.add_argument(
         "--limit",
