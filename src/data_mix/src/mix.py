@@ -35,6 +35,7 @@ from data_mix.src.llava_sampler import (
     open_llava_stream,
     sample_llava_records,
 )
+from data_mix.src.na_trees_sampler import sample_na_trees_records
 from data_mix.src.negative_builder import build_negative_records
 from data_mix.src.offline_qa_sampler import sample_offline_qa_records
 from data_mix.src.plant_sampler import (
@@ -82,6 +83,14 @@ class MixConfig:
     # bit-identical to their previous output.
     offline_qa_path: str | None = None
     offline_qa_val_ratio: float = 0.1
+    # v4: na_trees bucket — optional, sits alongside the main plant
+    # bucket. Records get ``source: "na_trees"`` stamped and route into
+    # the ``plant`` val partition (both are image-bearing species ID).
+    # Skipped entirely when na_trees_train_jsonl is None.
+    na_trees_train: int = 0
+    na_trees_val: int = 0
+    na_trees_train_jsonl: str | None = None
+    na_trees_val_jsonl: str | None = None
 
 
 def _load_config(path: Path) -> MixConfig:
@@ -109,6 +118,7 @@ def _load_config(path: Path) -> MixConfig:
         if not offline_qa_path.is_absolute():
             offline_qa_path = HIKECOMPANION_ROOT / offline_qa_path
         offline_qa_path = str(offline_qa_path.resolve())
+    na_trees_section = raw.get("na_trees") or {}
     return MixConfig(
         source=source,
         plant_train=raw["plant"]["train"],
@@ -123,6 +133,10 @@ def _load_config(path: Path) -> MixConfig:
         seed=raw["seed"],
         offline_qa_path=offline_qa_path,
         offline_qa_val_ratio=float(offline_qa_section.get("val_ratio", 0.1)),
+        na_trees_train=int(na_trees_section.get("train", 0)),
+        na_trees_val=int(na_trees_section.get("val", 0)),
+        na_trees_train_jsonl=na_trees_section.get("train_jsonl"),
+        na_trees_val_jsonl=na_trees_section.get("val_jsonl"),
     )
 
 
@@ -175,7 +189,10 @@ def _partition_val_by_source(val_records: List[dict]) -> Dict[str, List[dict]]:
     }
     for rec in val_records:
         src = rec["source"]
-        if src == "plant":
+        if src in ("plant", "na_trees"):
+            # v4: na_trees rides alongside plant in the val partition —
+            # both are image-bearing species ID and share the same
+            # "degradation watch" eval semantics.
             out["plant"].append(rec)
         elif src == "negative":
             out["negative"].append(rec)
@@ -295,9 +312,49 @@ def build_mix(config_path: Path) -> Path:
             len(offline_qa_train), len(offline_qa_val),
         )
 
+    # --- v4: na_trees bucket (optional, oversample-friendly). Skipped
+    # entirely when cfg.na_trees_train_jsonl is None so v1/v2/v3 configs
+    # are bit-identical to their previous output.
+    na_trees_train: List[dict] = []
+    na_trees_val: List[dict] = []
+    if cfg.na_trees_train_jsonl and cfg.na_trees_train > 0:
+        na_trees_train_path = Path(cfg.na_trees_train_jsonl)
+        if not na_trees_train_path.is_absolute():
+            na_trees_train_path = HIKECOMPANION_ROOT / na_trees_train_path
+        na_trees_val_path: Path | None = None
+        if cfg.na_trees_val_jsonl:
+            na_trees_val_path = Path(cfg.na_trees_val_jsonl)
+            if not na_trees_val_path.is_absolute():
+                na_trees_val_path = HIKECOMPANION_ROOT / na_trees_val_path
+        if not na_trees_train_path.exists():
+            raise FileNotFoundError(
+                f"na_trees train JSONL not found: {na_trees_train_path}"
+            )
+        if na_trees_val_path and not na_trees_val_path.exists():
+            raise FileNotFoundError(
+                f"na_trees val JSONL not found: {na_trees_val_path}"
+            )
+        na_trees_train, na_trees_val = sample_na_trees_records(
+            train_jsonl=na_trees_train_path,
+            val_jsonl=na_trees_val_path or na_trees_train_path,
+            n_train=cfg.na_trees_train,
+            n_val=cfg.na_trees_val,
+            seed=cfg.seed,
+        )
+        log.info(
+            "na_trees bucket: %d train / %d val (from %s)",
+            len(na_trees_train), len(na_trees_val), na_trees_train_path,
+        )
+
     # --- Combine and shuffle ---
-    train_all = plant_train + gen_train + smol_train + neg_train + offline_qa_train
-    val_all = plant_val + gen_val + smol_val + neg_val + offline_qa_val
+    train_all = (
+        plant_train + gen_train + smol_train + neg_train
+        + offline_qa_train + na_trees_train
+    )
+    val_all = (
+        plant_val + gen_val + smol_val + neg_val
+        + offline_qa_val + na_trees_val
+    )
     rng.shuffle(train_all)
     rng.shuffle(val_all)
 
