@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
-# Build the 50K anti-overtraining mix. All storage roots are env-driven
-# with safe in-repo defaults; operator overrides via environment.
+# Build a data mix. All storage roots are env-driven with safe in-repo
+# defaults; operator overrides via environment.
+#
+# Default CONFIG = PlantNet-backed mix-50k-plantnet.yaml (preserved
+# 1.0 recipe). For the NA-trees-backed default (when shipped), set
+# CONFIG=$DATA_MIX_DIR/configs/mix-50k.yaml.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_MIX_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SRC_ROOT="$(cd "${DATA_MIX_DIR}/.." && pwd)"
 
-CONFIG="${CONFIG:-${DATA_MIX_DIR}/configs/mix-50k.yaml}"
+CONFIG="${CONFIG:-${DATA_MIX_DIR}/configs/mix-50k-plantnet.yaml}"
 
 PYTHON_BIN="${PYTHON_BIN:-python}"
 
 echo "== data_mix build =="
 echo "HF_HOME              = ${HF_HOME:-<unset, using huggingface_hub default>}"
 echo "DATA_MIX_IMAGE_ROOT  = ${DATA_MIX_IMAGE_ROOT:-<unset, will fall back to ${DATA_MIX_DIR}/_local/images>}"
-echo "DATA_MIX_OUTPUT_ROOT = ${DATA_MIX_OUTPUT_ROOT:-<unset, will fall back to ${SRC_ROOT}/finetune/data/mix-50k>}"
+echo "DATA_MIX_OUTPUT_ROOT = ${DATA_MIX_OUTPUT_ROOT:-<unset, will fall back to ${SRC_ROOT}/finetune/data/mix-50k-plantnet}"
 echo "PLANTNET_JSONL       = ${PLANTNET_JSONL:-<unset, will fall back to ${SRC_ROOT}/finetune/data/english-desc-v2/train.jsonl>}"
 echo "CONFIG               = ${CONFIG}"
 echo "PYTHON_BIN           = ${PYTHON_BIN}"

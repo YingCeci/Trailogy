@@ -39,7 +39,7 @@ def resolve_paths() -> Paths:
 
     output_root = Path(
         os.environ.get("DATA_MIX_OUTPUT_ROOT")
-        or (SRC_ROOT / "finetune" / "data" / "mix-50k")
+        or (SRC_ROOT / "finetune" / "data" / "mix-50k-plantnet")
     ).resolve()
 
     plantnet_jsonl = Path(
