@@ -1,5 +1,5 @@
 # Training config: r=8, alpha=8, projector tuned, vision frozen, no KL.
-# Sized for a 24 GB-class GPU with effective batch size 16.
+# Sized for a 16 GB-class GPU with effective batch size 16.
 
 model:
   base_model: "unsloth/gemma-4-E2B-it"
