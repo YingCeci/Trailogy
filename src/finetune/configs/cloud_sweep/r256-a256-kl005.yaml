@@ -66,11 +66,12 @@ data:
   max_train_samples: null
   max_val_samples: null
   augmentation: true
-  # v4 camera-state gate (image presence keyed). Matches the iOS
-  # GemmaService dispatch.
+  # Camera-state gate. Image-bearing records get a "[camera=on] "
+  # prefix; text-only records get no prefix (camera_off omitted -> the
+  # data loader's .get default emits empty string). Matches the iOS
+  # GemmaService dispatch (only the .vlm path prepends the marker).
   prompt_prefixes:
     camera_on:  "[camera=on] "
-    camera_off: "[camera=off] "
 
 eval:
   enabled: true

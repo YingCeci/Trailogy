@@ -65,7 +65,6 @@ data:
   augmentation: true
   prompt_prefixes:
     camera_on:  "[camera=on] "
-    camera_off: ""
 
 eval:
   enabled: true
