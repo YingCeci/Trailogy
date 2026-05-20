@@ -282,7 +282,7 @@ def _resolve_mix_image_paths(
         raise SystemExit(
             f"{domain} domain: {eval_file} uses relative image paths but "
             f"--mix_image_root / $MIX_IMAGE_ROOT was not set and the "
-            f"default ``<eval_dir>/images/`` didn't resolve. Pass "
+            f"default ``<repo>/assets/eval_images/`` didn't resolve. Pass "
             f"--mix_image_root pointing at the directory that contains "
             f"llava/ and negative/ image subdirs."
         )
@@ -311,7 +311,7 @@ def _resolve_mix_image_paths(
                 f"  Either point --mix_image_root at the directory holding "
                 f"llava/<hash>.jpg and negative/<hash>.jpg, or restore the "
                 f"committed eval-image bundle under "
-                f"src/finetune/eval/images/."
+                f"assets/eval_images/."
             )
         rec = dict(rec)  # don't mutate caller's list element
         rec["image"] = str(p)
@@ -1001,13 +1001,14 @@ def main():
                         help="Root directory holding the mix-bucket images "
                              "referenced by llava_40.jsonl and refusal_20.jsonl "
                              "(``llava/<hash>.jpg``, ``negative/<hash>.jpg``). "
-                             "Defaults to ``<eval_dir>/images/`` which is the "
-                             "self-contained image bundle shipped in the repo, "
-                             "so llava + refusal eval works on a fresh clone "
-                             "with no extra setup. Override only if you've "
-                             "moved the images (e.g. the docker bundle keeps "
-                             "them under ``data_mix/_local/images/``). Env var "
-                             "fallback: MIX_IMAGE_ROOT.")
+                             "Defaults to ``<repo>/assets/eval_images/`` "
+                             "which is the self-contained image bundle "
+                             "shipped in the repo, so llava + refusal eval "
+                             "works on a fresh clone with no extra setup. "
+                             "Override only if you've moved the images (e.g. "
+                             "the docker bundle keeps them under "
+                             "``data_mix/_local/images/``). Env var fallback: "
+                             "MIX_IMAGE_ROOT.")
     parser.add_argument("--judge_only", action="store_true",
                         help="Skip model inference, just run judge on existing predictions")
     parser.add_argument("--seed", type=int, default=3407,
@@ -1035,14 +1036,16 @@ def main():
     # Mix-bucket image-root resolution. llava_40.jsonl and
     # refusal_20.jsonl reference images via ``<bucket>/<hash>.jpg``
     # relative paths. Resolution order: CLI flag → env var →
-    # ``<eval_dir>/images/`` self-contained bundle. The last one is the
-    # zero-config path for anyone who cloned the repo and ran
-    # prepare_plantnet_50k.sh — the ~5 MB image bundle is shipped in
-    # src/finetune/eval/images/ so no separate data step is needed.
+    # ``<repo>/assets/eval_images/`` self-contained bundle. The last one
+    # is the zero-config path for anyone who cloned the repo — the
+    # ~5 MB image bundle (llava/ + negative/) ships in-repo so no
+    # separate data step is needed for the llava / refusal domains.
     if args.mix_image_root is None and os.environ.get("MIX_IMAGE_ROOT"):
         args.mix_image_root = Path(os.environ["MIX_IMAGE_ROOT"])
     if args.mix_image_root is None:
-        default_mix_root = args.eval_dir / "images"
+        # FINETUNE_DIR = <repo>/src/finetune  →  parents[1] = <repo>
+        repo_root = FINETUNE_DIR.parents[1]
+        default_mix_root = repo_root / "assets" / "eval_images"
         if default_mix_root.is_dir():
             args.mix_image_root = default_mix_root
             log.info(
