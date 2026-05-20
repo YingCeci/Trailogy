@@ -121,7 +121,7 @@ class HttpClient:
     timeout: float
     user_agent: str
     refresh: bool = False
-    max_retries: int = 3
+    max_retries: int = 5
 
     def __post_init__(self) -> None:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -167,13 +167,34 @@ class HttpClient:
                     return data
                 if resp.status_code in (429, 500, 502, 503, 504):
                     if attempt == self.max_retries - 1:
+                        print(
+                            f"  [http] giving up after HTTP "
+                            f"{resp.status_code} on {url}",
+                            file=sys.stderr, flush=True,
+                        )
                         return {
                             "_error": f"HTTP {resp.status_code}",
                             "_status_code": resp.status_code,
                             "_url": resp.url,
                             "_params": params,
                         }
-                    time.sleep((2 ** attempt) + self.sleep)
+                    # Honor Retry-After header on 429 (Wikipedia + GBIF
+                    # both send it); else exponential backoff capped at
+                    # 60 s so a brief throttle doesn't stall the run.
+                    retry_after = resp.headers.get("Retry-After") or ""
+                    try:
+                        wait = float(retry_after)
+                    except ValueError:
+                        wait = 0.0
+                    if wait <= 0:
+                        wait = min(2 ** attempt + self.sleep, 60.0)
+                    print(
+                        f"  [http] retry {attempt + 1}/{self.max_retries} "
+                        f"HTTP {resp.status_code} on {url} "
+                        f"sleeping {wait:.1f}s",
+                        file=sys.stderr, flush=True,
+                    )
+                    time.sleep(wait)
                     continue
                 resp.raise_for_status()
                 data = resp.json()
@@ -188,11 +209,21 @@ class HttpClient:
                 return data
             except Exception as exc:  # noqa: BLE001
                 if attempt == self.max_retries - 1:
+                    print(
+                        f"  [http] giving up after {type(exc).__name__} "
+                        f"on {url}: {exc}",
+                        file=sys.stderr, flush=True,
+                    )
                     return {
                         "_error": repr(exc),
                         "_url": url,
                         "_params": params,
                     }
+                print(
+                    f"  [http] retry {attempt + 1}/{self.max_retries} "
+                    f"{type(exc).__name__} on {url}",
+                    file=sys.stderr, flush=True,
+                )
                 time.sleep((2 ** attempt) + self.sleep)
         return None
 
