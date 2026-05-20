@@ -111,6 +111,55 @@ def load_descriptions(path: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
+def synthesize_descriptions_from_observations(
+    observations_jsonl: Path,
+) -> dict[str, dict[str, Any]]:
+    """Build {slug: record} for every unique slug in observations.jsonl.
+
+    Used as a fallback so the 800-species bulk fetch from ``na_plantae_
+    fetch.py`` doesn't require 800 hand-curated description entries.
+    The synthesized records carry the minimum fields ``_build_record``
+    consumes (``slug``, ``species``, ``family``, ``answer``):
+
+      - ``species``  = the iNat ``scientific_name`` (Latin binomial)
+      - ``family``   = ``"(unknown)"`` — iNat /v1/observations doesn't
+        return family inline; populating it would cost ~800 extra
+        /v1/taxa calls. The field is required by the output JSONL
+        schema but not by the answer template here.
+      - ``answer``   = a single-shot canonical assistant turn matching
+        the shape of the curated answers in
+        ``assets/na_plantae/descriptions.yaml`` (lead-in + Latin name
+        recall), without the family clause.
+
+    Curated entries from ``descriptions.yaml`` override the synthesized
+    ones at merge time — see ``main()``.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    with open(observations_jsonl) as f:
+        for line in f:
+            rec = json.loads(line)
+            slug = rec.get("slug")
+            if not slug or slug in out:
+                continue
+            common = (
+                rec.get("common_name")
+                or slug.replace("_", " ")
+            )
+            species = rec.get("scientific_name") or "(unknown)"
+            answer = (
+                f"Looks like {common} to me. {species}, commonly called "
+                f"{common}, is a plant species found in North America."
+            )
+            out[slug] = {
+                "slug":        slug,
+                "common_name": common,
+                "species":     species,
+                "family":      "(unknown)",
+                "answer":      answer,
+            }
+    return out
+
+
 def detect_source_layout(source_root: Path) -> str:
     """``split`` if any of train/val/test exist as subdirs of source_root;
     otherwise ``flat``."""
@@ -402,6 +451,20 @@ def main(argv: list[str] | None = None) -> int:
         help="WxH to pre-resize images. 'none' disables. "
              "Default: 960x672 (iOS runtime).",
     )
+    ap.add_argument(
+        "--synthesize_missing", action=argparse.BooleanOptionalAction,
+        default=True,
+        help="When set (default), auto-synthesize description records "
+             "from <source_root>/observations.jsonl for slugs not "
+             "present in --descriptions. Curated entries always win. "
+             "Set --no-synthesize_missing to recover the strict pre-v4 "
+             "behaviour (drop fetched species without curated entries).",
+    )
+    ap.add_argument(
+        "--observations_jsonl", type=Path, default=None,
+        help="observations.jsonl to read for synthesized descriptions. "
+             "Default: <source_root>/observations.jsonl.",
+    )
     args = ap.parse_args(argv)
 
     logging.basicConfig(
@@ -410,8 +473,34 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     descs = load_descriptions(args.descriptions)
-    log.info("Loaded %d species descriptions from %s",
+    log.info("Loaded %d curated species descriptions from %s",
              len(descs), args.descriptions)
+
+    if args.synthesize_missing:
+        obs_path = (
+            args.observations_jsonl
+            or (args.source_root / "observations.jsonl")
+        )
+        if not obs_path.exists():
+            log.warning(
+                "--synthesize_missing set but %s missing; falling back "
+                "to curated descriptions only.",
+                obs_path,
+            )
+        else:
+            synth = synthesize_descriptions_from_observations(obs_path)
+            n_new = 0
+            for slug, rec in synth.items():
+                if slug not in descs:  # curated always wins
+                    descs[slug] = rec
+                    n_new += 1
+            log.info(
+                "Synthesized %d additional descriptions from %s "
+                "(curated entries preserved as overrides). "
+                "Total now: %d.",
+                n_new, obs_path, len(descs),
+            )
+
     slugs = sorted(descs.keys())
 
     layout = args.source_layout
