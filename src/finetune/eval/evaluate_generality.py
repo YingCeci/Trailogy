@@ -100,6 +100,44 @@ def extract_species(text: str) -> str:
     return first.lower()[:60]
 
 
+_LEADING_ARTICLE_RE = re.compile(r"^(?:the|a|an)_")
+
+
+def species_slug(s: str) -> str:
+    """Canonical species slug for cross-format equality.
+
+    The dataset's ``class_id`` slugs (e.g. ``fairy_slipper``,
+    ``clasping_venus_s_looking_glass``) collapse hyphens, spaces and
+    apostrophes into a single ``_`` separator. The reference text and
+    the model's free-text response do not — the ref string may carry
+    ``Fairy-slipper`` while the model emits ``Fairy Slipper`` and the
+    raw lowercase comparison drops the hit on the floor (caught
+    ``fairy_slipper`` being scored wrong at r8@12k while the prediction
+    literally said the right species, just with a space instead of a
+    hyphen).
+
+    Normalisation rules, in order:
+      * lowercase + trim;
+      * apostrophes (straight ``'`` and curly ``\u2019``) -> space, so
+        ``venus's`` collapses to ``venus_s`` matching the dataset's
+        ``clasping_venus_s_looking_glass`` form;
+      * whitespace + hyphen -> ``_`` (``fairy-slipper`` ->
+        ``fairy_slipper``);
+      * drop any remaining non-alphanumeric;
+      * collapse repeated ``_`` and trim leading/trailing ones;
+      * strip a leading article (``the_`` / ``a_`` / ``an_``) the phrase
+        regex occasionally picks up ("Looks like the Fairy Slipper to
+        me").
+    """
+    s = s.strip().lower()
+    s = re.sub(r"['\u2019]", " ", s)
+    s = re.sub(r"[\s\-]+", "_", s)
+    s = re.sub(r"[^a-z0-9_]+", "", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    s = _LEADING_ARTICLE_RE.sub("", s)
+    return s
+
+
 # ---------------------------------------------------------------------------
 # ROUGE-L (dependency-free)
 # ---------------------------------------------------------------------------
@@ -350,7 +388,23 @@ def _resolve_mix_image_paths(
 
 
 def score_plant(prediction: str, record: dict) -> dict:
-    """Score a plant identification response."""
+    """Score a plant identification response.
+
+    Equality is decided on the slug-canonical form (``species_slug``)
+    rather than the raw lowercased extraction. The lowercased path is
+    too strict — the dataset's reference text routinely carries the
+    hyphenated common name ("Fairy-slipper") while the model emits the
+    spaced form ("Fairy Slipper"). They denote the same species; the
+    slug collapses both to ``fairy_slipper`` and the hit is scored
+    correctly.
+
+    If the record carries a slug-form ``class_id`` (NA-Plantae style:
+    ``fairy_slipper``, ``clasping_venus_s_looking_glass``) we use that
+    directly as the gold key — it's the authoritative dataset label
+    and dodges any failure mode in the reference-text extractor.
+    Otherwise (legacy plantnet records have a numeric ``class_id``) we
+    fall back to slugging the extracted reference phrase.
+    """
     ref_text = ""
     for msg in record["conversations"]:
         if msg["role"] == "assistant":
@@ -359,13 +413,22 @@ def score_plant(prediction: str, record: dict) -> dict:
 
     ref_species = extract_species(ref_text)
     pred_species = extract_species(prediction)
-    match = ref_species == pred_species
+
+    raw_class_id = str(record.get("class_id", ""))
+    if raw_class_id and re.fullmatch(r"[a-z0-9_]+", raw_class_id) and not raw_class_id.isdigit():
+        gold_slug = raw_class_id
+    else:
+        gold_slug = species_slug(ref_species)
+    pred_slug = species_slug(pred_species)
+    match = gold_slug == pred_slug
 
     return {
         "species_match": match,
         "rouge_l": rouge_l(prediction, ref_text),
         "ref_species": ref_species,
         "pred_species": pred_species,
+        "gold_slug": gold_slug,
+        "pred_slug": pred_slug,
     }
 
 
