@@ -47,6 +47,13 @@ na_plantae:
   val:   1125
   train_jsonl: "../data/inaturalist_na_plantae_prepared/train.jsonl"
   val_jsonl:   "../data/inaturalist_na_plantae_prepared/val.jsonl"
+  # Per-class re-weighting on the train pool. 1.0 = natural (legacy);
+  # 0.5 = square-root tempered (Mahajan et al. 2018) — gives long-tail
+  # classes proportionally more visibility without full balancing.
+  # The prepare step's --min-imgs-per-species=30 / --max-imgs-per-species=120
+  # caps already compress the natural 192x imbalance ratio to ~4x; the
+  # remaining gap is closed with this tempering.
+  train_temperature: 0.5
 
 llava:
   train: 15000

@@ -160,6 +160,91 @@ def synthesize_descriptions_from_observations(
     return out
 
 
+def load_rolled_descriptions(
+    rolled_jsonl: Path,
+) -> dict[str, dict[str, Any]]:
+    """Build the ``{slug: desc}`` mapping from ``species_enriched_rolled.jsonl``.
+
+    The answer template matches ``synthesize_descriptions_from_observations``
+    so eval / training records look identical to the non-rollup path
+    once the binomial substitution lands. We do NOT carry the binomial's
+    Wikipedia / GBIF prose into the answer here — that lives in the RAG
+    layer; the SFT target stays the short "Looks like X to me. Y, …"
+    canonical form.
+    """
+    out: dict[str, dict[str, Any]] = {}
+    with open(rolled_jsonl) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            slug = rec.get("slug")
+            if not slug or slug in out:
+                continue
+            common = (
+                rec.get("common_name")
+                or slug.replace("_", " ")
+            )
+            species = rec.get("scientific_name") or "(unknown)"
+            answer = (
+                f"Looks like {common} to me. {species}, commonly called "
+                f"{common}, is a plant species found in North America."
+            )
+            out[slug] = {
+                "slug":        slug,
+                "common_name": common,
+                "species":     species,
+                "family":      "(unknown)",
+                "answer":      answer,
+            }
+    return out
+
+
+def build_slug_rewrite_map(
+    rolled_rows: list[dict[str, Any]],
+    observations_jsonl: Path,
+) -> dict[str, str]:
+    """Return ``{child_slug: parent_slug}`` for the rollup remap.
+
+    The rolled JSONL records the parent's slug + its children's
+    *scientific* names (``child_taxa``). We need the *child*'s slug to
+    know which on-disk image folder to redirect into the parent. We
+    pull that lookup from ``observations.jsonl`` (the fetcher records
+    sci_name + slug per observation).
+
+    Edge cases handled:
+      * a ``child_taxa`` entry whose scientific name isn't in
+        observations.jsonl (partial data) is silently skipped;
+      * a child whose slug equals the parent's (iNat shares a single
+        common-name slug across the species + its indicating subspecies
+        — happened in our dataset for ``Eriophyllum confertiflorum``)
+        emits no entry, since the rewrite would be a no-op.
+    """
+    sci_to_slug: dict[str, str] = {}
+    with open(observations_jsonl) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rec = json.loads(line)
+            sci = rec.get("scientific_name")
+            slug = rec.get("slug")
+            if sci and slug and sci not in sci_to_slug:
+                sci_to_slug[sci] = slug
+    rewrite: dict[str, str] = {}
+    for row in rolled_rows:
+        parent_slug = row.get("slug")
+        if not parent_slug:
+            continue
+        for child_sci in row.get("child_taxa") or []:
+            child_slug = sci_to_slug.get(child_sci)
+            if not child_slug or child_slug == parent_slug:
+                continue
+            rewrite[child_slug] = parent_slug
+    return rewrite
+
+
 def detect_source_layout(source_root: Path) -> str:
     """``split`` if any of train/val/test exist as subdirs of source_root;
     otherwise ``flat``."""
@@ -170,33 +255,70 @@ def detect_source_layout(source_root: Path) -> str:
 
 
 def discover_species_images_flat(
-    source_root: Path, slugs: list[str]
+    source_root: Path,
+    slugs: list[str],
+    slug_rewrite: dict[str, str] | None = None,
 ) -> dict[str, list[Path]]:
-    """{slug: sorted [Path, ...]} reading <source_root>/<slug>/*.jpg."""
-    out: dict[str, list[Path]] = {}
-    for slug in slugs:
-        d = source_root / slug
-        if not d.is_dir():
-            log.warning("species folder missing (flat): %s", d)
-            out[slug] = []
+    """``{slug: sorted [Path, ...]}`` reading ``<source_root>/<slug>/*.jpg``.
+
+    When ``slug_rewrite`` is given, walk ALL subdirs of ``source_root``
+    and merge any folder whose name appears as a key in the map into
+    the mapped (parent) slug. Folders not in the map keep their name.
+    Folders whose post-rewrite name isn't in ``slugs`` are ignored
+    (they belong to species we don't have a description for).
+    """
+    if not slug_rewrite:
+        out: dict[str, list[Path]] = {}
+        for slug in slugs:
+            d = source_root / slug
+            if not d.is_dir():
+                log.warning("species folder missing (flat): %s", d)
+                out[slug] = []
+                continue
+            files = sorted(
+                p for p in d.iterdir() if p.suffix.lower() in IMG_EXTS
+            )
+            out[slug] = files
+            log.info("  %s: %d images", slug, len(files))
+        return out
+
+    accepted = set(slugs)
+    out = {s: [] for s in slugs}
+    for slug_dir in sorted(source_root.iterdir()):
+        if not slug_dir.is_dir():
             continue
-        files = sorted(p for p in d.iterdir() if p.suffix.lower() in IMG_EXTS)
-        out[slug] = files
-        log.info("  %s: %d images", slug, len(files))
+        target_slug = slug_rewrite.get(slug_dir.name, slug_dir.name)
+        if target_slug not in accepted:
+            continue
+        out[target_slug].extend(
+            sorted(p for p in slug_dir.iterdir() if p.suffix.lower() in IMG_EXTS)
+        )
+    for slug in slugs:
+        if out[slug]:
+            log.info("  %s: %d images", slug, len(out[slug]))
+        else:
+            log.warning("  %s: no images under %s", slug, source_root)
     return out
 
 
 def discover_species_images_split(
-    source_root: Path, slugs: list[str]
+    source_root: Path,
+    slugs: list[str],
+    slug_rewrite: dict[str, str] | None = None,
 ) -> dict[str, dict[str, list[Path]]]:
-    """{slug: {split: sorted [Path, ...]}} reading
-    <source_root>/<split>/<slug>/*.jpg.
+    """``{slug: {split: sorted [Path, ...]}}`` reading
+    ``<source_root>/<split>/<slug>/*.jpg``.
 
-    Slugs that don't appear in ANY split are logged once. Slugs that
-    appear under directories not listed in ``slugs`` (i.e. species
-    the fetcher pulled but no description exists for) are surfaced as
-    a single WARN with the dropped count.
+    When ``slug_rewrite`` is given, any sub-folder whose name is a key
+    in the map is treated as belonging to the mapped (binomial)
+    parent. Multiple child folders can therefore contribute to the
+    same parent slug — that's the whole point of the rollup mode.
+
+    Slugs that don't appear in ANY split (after rewrite) are logged
+    once. Folders whose post-rewrite slug isn't in ``slugs`` (= no
+    description for that species) are surfaced as a single WARN.
     """
+    slug_rewrite = slug_rewrite or {}
     out: dict[str, dict[str, list[Path]]] = {s: {} for s in slugs}
     fetched_slugs_with_imgs: set[str] = set()
     for split_name in SPLIT_NAMES:
@@ -212,13 +334,18 @@ def discover_species_images_split(
             if not files:
                 continue
             fetched_slugs_with_imgs.add(slug_dir.name)
-            if slug_dir.name not in out:
+            target_slug = slug_rewrite.get(slug_dir.name, slug_dir.name)
+            if target_slug not in out:
                 # Fetcher pulled this slug but we have no description
-                # for it; track for the post-walk WARN.
+                # for it (and no rewrite into a known slug); track for
+                # the post-walk WARN.
                 continue
-            out[slug_dir.name][split_name] = files
+            out[target_slug].setdefault(split_name, []).extend(files)
 
-    dropped = fetched_slugs_with_imgs - set(slugs)
+    # In rollup mode, child slugs aren't in the `slugs` list (only
+    # binomial parents are) but they're explicitly mapped — so they're
+    # not "dropped", they were merged. Subtract those before warning.
+    dropped = fetched_slugs_with_imgs - set(slugs) - set(slug_rewrite.keys())
     if dropped:
         log.warning(
             "Skipping %d fetched species without descriptions (extend "
@@ -305,11 +432,14 @@ def _process_flat(
     args: argparse.Namespace,
     descs: dict[str, dict[str, Any]],
     slugs: list[str],
+    slug_rewrite: dict[str, str] | None = None,
 ) -> tuple[
     dict[str, list[dict]], dict[str, dict[str, int]], random.Random
 ]:
     """Per-species random split (legacy flat-source mode)."""
-    species_imgs = discover_species_images_flat(args.source_root, slugs)
+    species_imgs = discover_species_images_flat(
+        args.source_root, slugs, slug_rewrite=slug_rewrite,
+    )
     rng = random.Random(args.seed)
     splits: dict[str, list[dict]] = {s: [] for s in SPLIT_NAMES}
     summary: dict[str, dict[str, int]] = {}
@@ -361,15 +491,109 @@ def _process_flat(
     return splits, summary, rng
 
 
+def _apply_species_caps(
+    splits: dict[str, list[dict]],
+    summary: dict[str, dict[str, int]],
+    min_imgs: int,
+    max_imgs: int,
+    rng: random.Random,
+) -> tuple[dict[str, list[dict]], dict[str, dict[str, int]]]:
+    """Filter ``splits`` + ``summary`` so each species' total image count
+    is in ``[min_imgs, max_imgs]``.
+
+    * Species with total < ``min_imgs`` are dropped from every split.
+      Rationale: a tail class with only a handful of images can't
+      generalize across photo angle / lighting / phenology — the model
+      will either memorize the specific shots or learn nothing. Either
+      way it steals capacity from learnable classes.
+    * Species with total > ``max_imgs`` get their train rows trimmed
+      (held-out val + test are NEVER touched — that would corrupt eval
+      integrity). The trim is uniform-random across the train rows of
+      that species using ``rng``.
+
+    A ``min_imgs <= 0`` or ``max_imgs <= 0`` argument disables the
+    respective bound (treats it as +inf / -inf).
+    """
+    # Group train indices by slug so we can sample down without
+    # rebuilding the whole list per species.
+    train_idx_by_slug: dict[str, list[int]] = {}
+    for i, rec in enumerate(splits["train"]):
+        train_idx_by_slug.setdefault(rec["slug"], []).append(i)
+
+    drop_slugs: set[str] = set()
+    train_drop_idxs: set[int] = set()
+
+    effective_min = min_imgs if min_imgs > 0 else 0
+    effective_max = max_imgs if max_imgs > 0 else 10**18
+
+    for slug, per in summary.items():
+        total = per.get("total", per["train"] + per["val"] + per["test"])
+        if total < effective_min:
+            drop_slugs.add(slug)
+            continue
+        if total > effective_max:
+            # Trim train rows by ``overflow`` so total comes down to
+            # exactly ``effective_max``. Never trim val/test.
+            overflow = total - effective_max
+            train_idxs = list(train_idx_by_slug.get(slug, []))
+            n_drop = min(overflow, len(train_idxs))
+            if n_drop > 0:
+                drop_local = rng.sample(train_idxs, n_drop)
+                train_drop_idxs.update(drop_local)
+
+    new_splits: dict[str, list[dict]] = {
+        "train": [
+            r for i, r in enumerate(splits["train"])
+            if r["slug"] not in drop_slugs and i not in train_drop_idxs
+        ],
+        "val": [r for r in splits["val"] if r["slug"] not in drop_slugs],
+        "test": [r for r in splits["test"] if r["slug"] not in drop_slugs],
+    }
+
+    # Rebuild summary from the filtered splits to stay in sync.
+    new_summary: dict[str, dict[str, int]] = {}
+    for split_name, rows in new_splits.items():
+        for r in rows:
+            entry = new_summary.setdefault(
+                r["slug"], {"train": 0, "val": 0, "test": 0, "total": 0},
+            )
+            entry[split_name] += 1
+            entry["total"] += 1
+    return new_splits, new_summary
+
+
+def _add_species_cap_args(ap: argparse.ArgumentParser) -> None:
+    """Register --min-imgs-per-species / --max-imgs-per-species on
+    an existing argparse parser. Pulled out so the defaults can be
+    introspected by both ``main()`` and the unit tests."""
+    ap.add_argument(
+        "--min-imgs-per-species", "--min_imgs_per_species",
+        dest="min_imgs_per_species", type=int, default=30,
+        help="Drop any species whose total (train+val+test) image "
+             "count is below this threshold. Default: 30. "
+             "Set 0 to disable.",
+    )
+    ap.add_argument(
+        "--max-imgs-per-species", "--max_imgs_per_species",
+        dest="max_imgs_per_species", type=int, default=120,
+        help="Cap any species' total image count at this value by "
+             "trimming train rows (val + test preserved). "
+             "Default: 120. Set 0 to disable.",
+    )
+
+
 def _process_split(
     args: argparse.Namespace,
     descs: dict[str, dict[str, Any]],
     slugs: list[str],
+    slug_rewrite: dict[str, str] | None = None,
 ) -> tuple[
     dict[str, list[dict]], dict[str, dict[str, int]], random.Random
 ]:
     """Respect fetcher-pre-computed splits (split-source mode)."""
-    per_slug_per_split = discover_species_images_split(args.source_root, slugs)
+    per_slug_per_split = discover_species_images_split(
+        args.source_root, slugs, slug_rewrite=slug_rewrite,
+    )
     rng = random.Random(args.seed)
     splits: dict[str, list[dict]] = {s: [] for s in SPLIT_NAMES}
     summary: dict[str, dict[str, int]] = {}
@@ -443,6 +667,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="(flat layout only) per-species val cap.")
     ap.add_argument("--test_per_species", type=int, default=5,
                     help="(flat layout only) per-species test cap.")
+    _add_species_cap_args(ap)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument(
         "--resize_to",
@@ -465,6 +690,15 @@ def main(argv: list[str] | None = None) -> int:
         help="observations.jsonl to read for synthesized descriptions. "
              "Default: <source_root>/observations.jsonl.",
     )
+    ap.add_argument(
+        "--rollup-to-species", dest="rollup_to_species",
+        type=Path, default=None,
+        help="Path to species_enriched_rolled.jsonl from rollup_to_species.py. "
+             "When set, every fetched <split>/<child_slug>/ image folder is "
+             "merged into its binomial parent; output JSONL class_ids use the "
+             "binomial slug. Replaces curated YAML + observations synthesis "
+             "as the description source.",
+    )
     args = ap.parse_args(argv)
 
     logging.basicConfig(
@@ -472,34 +706,69 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s [%(levelname)s] %(message)s",
     )
 
-    descs = load_descriptions(args.descriptions)
-    log.info("Loaded %d curated species descriptions from %s",
-             len(descs), args.descriptions)
+    slug_rewrite: dict[str, str] | None = None
 
-    if args.synthesize_missing:
+    if args.rollup_to_species:
+        # Rollup mode: rolled JSONL is the sole description source, and
+        # the rewrite map redirects child trinomial folders into their
+        # binomial parents. Curated YAML / observations-synthesize are
+        # bypassed — the rolled file already absorbed both.
+        if not args.rollup_to_species.exists():
+            log.error("--rollup-to-species not found: %s",
+                      args.rollup_to_species)
+            return 2
+        descs = load_rolled_descriptions(args.rollup_to_species)
+        log.info(
+            "Loaded %d binomial descriptions from %s",
+            len(descs), args.rollup_to_species,
+        )
         obs_path = (
             args.observations_jsonl
             or (args.source_root / "observations.jsonl")
         )
         if not obs_path.exists():
-            log.warning(
-                "--synthesize_missing set but %s missing; falling back "
-                "to curated descriptions only.",
+            log.error(
+                "Rollup mode needs observations.jsonl (got: %s missing). "
+                "Pass --observations_jsonl explicitly.",
                 obs_path,
             )
-        else:
-            synth = synthesize_descriptions_from_observations(obs_path)
-            n_new = 0
-            for slug, rec in synth.items():
-                if slug not in descs:  # curated always wins
-                    descs[slug] = rec
-                    n_new += 1
-            log.info(
-                "Synthesized %d additional descriptions from %s "
-                "(curated entries preserved as overrides). "
-                "Total now: %d.",
-                n_new, obs_path, len(descs),
+            return 2
+        with open(args.rollup_to_species) as f:
+            rolled_rows = [json.loads(line) for line in f if line.strip()]
+        slug_rewrite = build_slug_rewrite_map(rolled_rows, obs_path)
+        log.info(
+            "Built slug rewrite map: %d child slugs → binomial parents",
+            len(slug_rewrite),
+        )
+    else:
+        descs = load_descriptions(args.descriptions)
+        log.info("Loaded %d curated species descriptions from %s",
+                 len(descs), args.descriptions)
+
+        if args.synthesize_missing:
+            obs_path = (
+                args.observations_jsonl
+                or (args.source_root / "observations.jsonl")
             )
+            if not obs_path.exists():
+                log.warning(
+                    "--synthesize_missing set but %s missing; falling back "
+                    "to curated descriptions only.",
+                    obs_path,
+                )
+            else:
+                synth = synthesize_descriptions_from_observations(obs_path)
+                n_new = 0
+                for slug, rec in synth.items():
+                    if slug not in descs:  # curated always wins
+                        descs[slug] = rec
+                        n_new += 1
+                log.info(
+                    "Synthesized %d additional descriptions from %s "
+                    "(curated entries preserved as overrides). "
+                    "Total now: %d.",
+                    n_new, obs_path, len(descs),
+                )
 
     slugs = sorted(descs.keys())
 
@@ -511,9 +780,33 @@ def main(argv: list[str] | None = None) -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     if layout == "split":
-        splits, summary, rng = _process_split(args, descs, slugs)
+        splits, summary, rng = _process_split(
+            args, descs, slugs, slug_rewrite=slug_rewrite,
+        )
     else:
-        splits, summary, rng = _process_flat(args, descs, slugs)
+        splits, summary, rng = _process_flat(
+            args, descs, slugs, slug_rewrite=slug_rewrite,
+        )
+
+    # Per-species min/max image-count caps. Tail (< min) classes are
+    # dropped (unlearnable); head (> max) classes have train rows
+    # uniformly trimmed (val/test preserved).
+    pre_classes = len(summary)
+    pre_total = sum(s["total"] for s in summary.values())
+    splits, summary = _apply_species_caps(
+        splits,
+        summary,
+        min_imgs=args.min_imgs_per_species,
+        max_imgs=args.max_imgs_per_species,
+        rng=rng,
+    )
+    post_total = sum(s["total"] for s in summary.values())
+    log.info(
+        "Species caps applied (min=%d, max=%d): "
+        "%d -> %d classes, %d -> %d images.",
+        args.min_imgs_per_species, args.max_imgs_per_species,
+        pre_classes, len(summary), pre_total, post_total,
+    )
 
     # Shuffle train globally so species aren't clumped together.
     rng.shuffle(splits["train"])
@@ -545,6 +838,10 @@ def main(argv: list[str] | None = None) -> int:
                 "train": args.train_per_species,
                 "val":   args.val_per_species,
                 "test":  args.test_per_species,
+            },
+            "species_caps": {
+                "min_imgs_per_species": args.min_imgs_per_species,
+                "max_imgs_per_species": args.max_imgs_per_species,
             },
             "resize_to": (
                 [args.resize_to[1], args.resize_to[0]]

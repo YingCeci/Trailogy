@@ -138,6 +138,31 @@ DEFAULT_PARAMS: dict[str, Any] = {
 DEFAULT_TARGET_SPECIES = 150
 DEFAULT_OBS_PER_SPECIES = 50
 
+# iNaturalist's ``photos[*].url`` field returns the 75x75 ``square.jpg``
+# thumbnail by default — useless for vision training (a 12x upscale to
+# the 960x672 prep target leaves only blur). Substitute the trailing
+# ``square.jpg`` with one of the larger sizes below before download.
+# ``large`` is the smallest size that exceeds the 960-pixel-on-long-side
+# iOS runtime target (yields 771x1024 typical), so no upscale needed.
+INAT_IMAGE_SIZES = ("square", "small", "medium", "large", "original")
+DEFAULT_IMAGE_SIZE = "large"
+
+
+def _upgrade_inat_url(url: str, size: str) -> str:
+    """Rewrite an iNat photo URL to request ``<size>.jpg`` instead of
+    ``square.jpg``. Non-iNat URLs and already-upgraded URLs pass through
+    unchanged.
+    """
+    if not url or size == "square":
+        return url
+    # Both inaturalist-open-data.s3.amazonaws.com and static.inaturalist.org
+    # use the trailing-filename convention.
+    for s in INAT_IMAGE_SIZES:
+        suffix = f"/{s}.jpg"
+        if url.endswith(suffix):
+            return url[: -len(suffix)] + f"/{size}.jpg"
+    return url
+
 # Backward-compat alias: some callers still import ``BASE``.
 BASE = OBS_URL
 
@@ -359,6 +384,7 @@ def flatten_photos(
     *,
     seed: int,
     split_ratios: tuple[float, float, float],
+    image_size: str = DEFAULT_IMAGE_SIZE,
 ) -> list[dict[str, Any]]:
     """Explode obs[*].photos[*] into per-photo records.
 
@@ -383,7 +409,9 @@ def flatten_photos(
                 "scientific_name": taxon.get("name"),
                 "common_name":     taxon.get("preferred_common_name"),
                 "rank":            taxon.get("rank"),
-                "photo_url":       photo.get("url"),
+                "photo_url":       _upgrade_inat_url(
+                    photo.get("url") or "", image_size,
+                ),
                 "license_code":    photo.get("license_code"),
                 "observed_on":     obs.get("observed_on"),
                 "place_guess":     obs.get("place_guess"),
@@ -544,6 +572,14 @@ def main(argv: list[str] | None = None) -> int:
         "--max-workers", type=int, default=32,
         help="Thread pool size for parallel image downloads. Default: 32.",
     )
+    ap.add_argument(
+        "--image-size", choices=INAT_IMAGE_SIZES, default=DEFAULT_IMAGE_SIZE,
+        help=f"iNaturalist image size to request. Default: "
+             f"{DEFAULT_IMAGE_SIZE!r} (~1024 px long side; matches the "
+             "iOS runtime resize without upscale). The API returns "
+             "75x75 'square' thumbnails by default, which is too low-res "
+             "for vision training.",
+    )
     args = ap.parse_args(argv)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -634,6 +670,7 @@ def main(argv: list[str] | None = None) -> int:
         observations,
         seed=args.seed,
         split_ratios=args.split_ratios,
+        image_size=args.image_size,
     )
     print(
         f"Found {len(observations)} observations "

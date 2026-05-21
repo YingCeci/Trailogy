@@ -95,6 +95,11 @@ class MixConfig:
     na_plantae_val: int = 0
     na_plantae_train_jsonl: str | None = None
     na_plantae_val_jsonl: str | None = None
+    # Per-class re-weighting on the na_plantae train pool. 1.0 = legacy
+    # frequency-proportional sampling. 0.5 = square-root tempered
+    # (long-tail standard). 0.0 = fully class-balanced. Val is always
+    # natural regardless of this setting.
+    na_plantae_train_temperature: float = 1.0
 
 
 def _load_config(path: Path) -> MixConfig:
@@ -143,6 +148,9 @@ def _load_config(path: Path) -> MixConfig:
         na_plantae_val=int(na_plantae_section.get("val", 0)),
         na_plantae_train_jsonl=na_plantae_section.get("train_jsonl"),
         na_plantae_val_jsonl=na_plantae_section.get("val_jsonl"),
+        na_plantae_train_temperature=float(
+            na_plantae_section.get("train_temperature", 1.0)
+        ),
     )
 
 
@@ -385,12 +393,15 @@ def build_mix(config_path: Path) -> Path:
             n_train=cfg.na_plantae_train,
             n_val=cfg.na_plantae_val,
             seed=cfg.seed,
+            train_temperature=cfg.na_plantae_train_temperature,
         )
         log.info(
-            "na_plantae bucket: %d train (%s) / %d val (%s)",
+            "na_plantae bucket: %d train (%s) / %d val (%s) "
+            "[train_temperature=%.2f]",
             len(na_plantae_train), na_plantae_train_path,
             len(na_plantae_val),
             na_plantae_val_path if na_plantae_val_path else "<no val>",
+            cfg.na_plantae_train_temperature,
         )
 
     # --- Combine and shuffle ---
