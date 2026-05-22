@@ -22,8 +22,14 @@ DEFAULT_CONFIG = "configs/local_sweep/r32-a32-dora-nokl-local-30k-v2mix.yaml"
 REPO_URL = "https://github.com/YingCeci/Trailogy.git"
 REPO_BRANCH = "feature/sft-quant-datamix"
 
+# Local finetune source tree — mounted at runtime so edits don't need
+# an image rebuild (same pattern as parameter-golf's add_local_file).
+FINETUNE_DIR = Path(__file__).resolve().parent.parent  # src/finetune/
+
 # ---------------------------------------------------------------
-# Image: pre-built Docker with deps, clone repo at build time
+# Image: pre-built Docker with deps, clone repo at build time.
+# Local src/ and configs/ are overlaid via add_local_dir (copy=False)
+# so code + config edits take effect without image rebuild.
 # ---------------------------------------------------------------
 image = (
     modal.Image.from_registry(
@@ -37,6 +43,16 @@ image = (
     .env({
         "PYTHONUNBUFFERED": "1",
     })
+    .add_local_dir(
+        str(FINETUNE_DIR / "src"),
+        remote_path="/workspace/Trailogy/src/finetune/src",
+        copy=False,
+    )
+    .add_local_dir(
+        str(FINETUNE_DIR / "configs"),
+        remote_path="/workspace/Trailogy/src/finetune/configs",
+        copy=False,
+    )
 )
 
 app = modal.App(APP_NAME, image=image)
@@ -59,10 +75,18 @@ def _run_training(
     os.chdir(workdir)
 
     # Data lives at /workspace/data/mix-50k-v2/ in the container.
-    # The config expects data/mix-50k-v2/ relative to cwd, so symlink.
-    data_link = Path(workdir) / "data"
-    if not data_link.exists():
-        os.symlink("/workspace/data", str(data_link), target_is_directory=True)
+    # The config expects data/mix-50k-v2/ relative to cwd. The repo's
+    # data/ dir exists (has data/sample/ tracked), so we symlink the
+    # specific dataset subdirs instead of replacing the whole dir.
+    data_dir = Path(workdir) / "data"
+    data_dir.mkdir(exist_ok=True)
+    container_data = Path("/workspace/data")
+    if container_data.exists():
+        for child in container_data.iterdir():
+            link = data_dir / child.name
+            if not link.exists():
+                os.symlink(str(child), str(link),
+                           target_is_directory=child.is_dir())
 
     # Symlink outputs to artifact volume for persistence
     outputs_link = Path(workdir) / "outputs"
@@ -140,7 +164,6 @@ def _run_training(
     memory=64 * 1024,
     timeout=6 * 60 * 60,  # 6 hour hard limit
     volumes={"/vol/runs": run_vol},
-    secrets=[modal.Secret.from_name("huggingface", required=False)],
 )
 def train(
     config: str = DEFAULT_CONFIG,
@@ -158,7 +181,6 @@ def train(
     memory=32 * 1024,
     timeout=30 * 60,
     volumes={"/vol/runs": run_vol},
-    secrets=[modal.Secret.from_name("huggingface", required=False)],
 )
 def smoke(
     config: str = DEFAULT_CONFIG,
@@ -168,8 +190,8 @@ def smoke(
         config=config,
         run_name="smoke-test",
         max_steps=50,
-        extra_args=["--no-eval", "--max_train_samples", "100"],
-        env_overrides=None,
+        extra_args=["--max_train_samples", "100", "--report_to", "none"],
+        env_overrides={"WANDB_MODE": "disabled"},
     )
 
 
