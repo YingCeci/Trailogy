@@ -184,6 +184,16 @@ def _is_lora_b(k: str) -> bool:
     return k.endswith(".lora_B.weight")
 
 
+# DoRA (arXiv:2402.09353) magnitude vector. PEFT 0.19.x stores this as
+# a raw tensor named ``<module>.lora_magnitude_vector`` (no ``.weight``
+# suffix) on every LoRA-targeted Linear. The merge has to consume it
+# together with the (A, B) pair, not pass it through as a direct
+# replacement — its shape is (out_dim,) and the base key is the parent
+# Linear's ``.weight``, which would shape-mismatch on direct replace.
+def _is_lora_magnitude(k: str) -> bool:
+    return k.endswith(".lora_magnitude_vector")
+
+
 def _lora_target_base_key(adapter_a_key: str) -> str:
     """``...module_path.lora_A.weight`` → ``...module_path.weight`` (base-side)."""
     if not _is_lora_a(adapter_a_key):
@@ -191,6 +201,14 @@ def _lora_target_base_key(adapter_a_key: str) -> str:
     base_unprefixed = _strip_peft_prefix(adapter_a_key)
     # Drop ".lora_A.weight" → append ".weight"
     return base_unprefixed[: -len(".lora_A.weight")] + ".weight"
+
+
+def _lora_magnitude_target_base_key(adapter_mag_key: str) -> str:
+    """``...module_path.lora_magnitude_vector`` → ``...module_path.weight``."""
+    if not _is_lora_magnitude(adapter_mag_key):
+        raise ValueError(f"Not a lora_magnitude key: {adapter_mag_key}")
+    base_unprefixed = _strip_peft_prefix(adapter_mag_key)
+    return base_unprefixed[: -len(".lora_magnitude_vector")] + ".weight"
 
 
 def _modules_to_save_target_base_key(adapter_key: str) -> str:
@@ -208,10 +226,19 @@ def merge(
     r = int(cfg["r"])
     alpha = int(cfg["lora_alpha"])
     scale = alpha / r
+    # DoRA (Weight-Decomposed Low-Rank Adaptation, arXiv:2402.09353)
+    # decomposes each Linear's weight into magnitude × direction. PEFT
+    # exposes the toggle as ``use_dora`` in adapter_config.json; the
+    # merge math is
+    #   W_new = (W + scale·B@A) · (m / ||W + scale·B@A||_axis=1)[:, None]
+    # where ``m`` is the per-output-unit magnitude vector and the L2
+    # norm is taken along the input axis. With ``use_dora=False`` we
+    # collapse to the standard LoRA merge ``W_new = W + scale·B@A``.
+    use_dora = bool(cfg.get("use_dora", False))
     log.info(
-        "Adapter config: r=%d, lora_alpha=%d, scale=%.4f; "
+        "Adapter config: r=%d, lora_alpha=%d, scale=%.4f; use_dora=%s; "
         "modules_to_save=%s",
-        r, alpha, scale, cfg.get("modules_to_save"),
+        r, alpha, scale, use_dora, cfg.get("modules_to_save"),
     )
 
     base = _load_base_tensors(base_dir)
@@ -221,13 +248,19 @@ def merge(
     if not adapter_file.exists():
         raise FileNotFoundError(f"adapter_model.safetensors not in {adapter_dir}")
 
-    # Pass 1: collect LoRA pairs and direct replacements.
+    # Pass 1: collect LoRA pairs, optional DoRA magnitudes, and direct
+    # replacements. The magnitude vector (DoRA) lives at the same module
+    # path as its (A, B) pair but is not itself an (A, B) tensor — pair
+    # it into a dict keyed by base target so Pass 2 can apply both the
+    # delta and the rescale in one step.
     lora_pairs: Dict[str, Tuple[torch.Tensor, torch.Tensor]] = {}
+    lora_magnitudes: Dict[str, torch.Tensor] = {}
     direct_replacements: Dict[str, torch.Tensor] = {}
 
     # First pass: enumerate keys so we can pair A with B without
     # ambiguity on iteration order.
     lora_a_keys: list[str] = []
+    lora_magnitude_keys: list[str] = []
     other_keys: list[str] = []
     with safe_open(str(adapter_file), framework="pt") as f:
         for k in f.keys():
@@ -236,6 +269,8 @@ def merge(
             elif _is_lora_b(k):
                 # Will be paired with its A counterpart below.
                 pass
+            elif _is_lora_magnitude(k):
+                lora_magnitude_keys.append(k)
             else:
                 other_keys.append(k)
         # Now load the actual tensors.
@@ -245,16 +280,36 @@ def merge(
             a_t = f.get_tensor(a_key)
             b_t = f.get_tensor(b_key)
             lora_pairs[target] = (a_t, b_t)
+        for m_key in lora_magnitude_keys:
+            target = _lora_magnitude_target_base_key(m_key)
+            lora_magnitudes[target] = f.get_tensor(m_key)
         for k in other_keys:
             target = _modules_to_save_target_base_key(k)
             direct_replacements[target] = f.get_tensor(k)
 
+    if use_dora and not lora_magnitudes:
+        raise KeyError(
+            "adapter_config.use_dora=True but no lora_magnitude_vector "
+            "tensors were found in adapter_model.safetensors. The adapter "
+            "is mis-saved; re-export from PEFT with the DoRA flag intact."
+        )
+    if lora_magnitudes and not use_dora:
+        log.warning(
+            "Found %d lora_magnitude_vector tensors but adapter_config "
+            "use_dora=%s. Treating as DoRA anyway (the tensors are the "
+            "ground truth; config can drift on re-saves).",
+            len(lora_magnitudes), use_dora,
+        )
+        use_dora = True
+
     log.info(
-        "Adapter: %d LoRA pairs, %d direct replacements",
-        len(lora_pairs), len(direct_replacements),
+        "Adapter: %d LoRA pairs, %d DoRA magnitudes, %d direct replacements",
+        len(lora_pairs), len(lora_magnitudes), len(direct_replacements),
     )
 
-    # Sanity: every LoRA / direct target must exist in the base.
+    # Sanity: every LoRA / magnitude / direct target must exist in the
+    # base. The magnitudes must also each have a paired (A, B) — a
+    # dangling magnitude is an adapter-export bug.
     missing = [k for k in lora_pairs if k not in base]
     if missing:
         # Show first 5 so we can spot the pattern.
@@ -264,6 +319,24 @@ def merge(
             "--base was supplied, or the adapter targets a module "
             "path that does not exist in this checkpoint. Aborting."
         )
+    missing_mag = [k for k in lora_magnitudes if k not in lora_pairs]
+    if missing_mag:
+        raise KeyError(
+            f"{len(missing_mag)} lora_magnitude_vector tensors have "
+            f"no matching (lora_A, lora_B) pair. Sample: {missing_mag[:5]}. "
+            "The adapter is malformed; abort."
+        )
+    if use_dora:
+        # Every (A, B) pair must have a magnitude under DoRA — otherwise
+        # the model would have trained partially in vanilla-LoRA mode
+        # for those layers and we'd silently apply the wrong merge.
+        no_mag = [k for k in lora_pairs if k not in lora_magnitudes]
+        if no_mag:
+            raise KeyError(
+                f"use_dora=True but {len(no_mag)} (A, B) pairs lack a "
+                f"magnitude vector. Sample: {no_mag[:5]}. Cannot decide "
+                "between LoRA and DoRA merge per-layer; abort."
+            )
     missing_direct = [k for k in direct_replacements if k not in base]
     if missing_direct:
         raise KeyError(
@@ -271,15 +344,35 @@ def merge(
             f"in the base. Sample: {missing_direct[:5]}. Aborting."
         )
 
-    # Pass 2: apply LoRA deltas in fp32, cast back to base dtype.
+    # Pass 2: apply LoRA / DoRA deltas in fp32, cast back to base dtype.
+    #
+    # DoRA merge (when use_dora=True):
+    #   W_merged = W + scale · B @ A
+    #   col_norms = ||W_merged||_axis=1                 # shape (out,)
+    #   W_new = W_merged * (m / col_norms)[:, None]     # broadcast over input dim
+    #
+    # The axis=1 norm matches PEFT's ``torch.linalg.norm(weight, dim=1)``
+    # convention in tuners/lora/dora.py. Magnitude m is per-output-unit
+    # so the rescale broadcasts across the input axis. A tiny epsilon
+    # would be defensible against zero-norm rows but PEFT itself does
+    # not add one; we follow PEFT to stay byte-for-byte consistent with
+    # the model the user trained.
     applied_lora = 0
     for target, (a, b) in lora_pairs.items():
         base_t = base[target]
         delta = (b.to(torch.float32) @ a.to(torch.float32)) * scale
         merged = base_t.to(torch.float32) + delta
+        if use_dora:
+            m = lora_magnitudes[target].to(torch.float32)
+            col_norms = torch.linalg.norm(merged, dim=1)
+            mag_norm_scale = (m / col_norms).reshape(-1, 1)
+            merged = merged * mag_norm_scale
         base[target] = merged.to(base_t.dtype)
         applied_lora += 1
-    log.info("Applied %d LoRA deltas in fp32, cast back to base dtype", applied_lora)
+    log.info(
+        "Applied %d %s deltas in fp32, cast back to base dtype",
+        applied_lora, "DoRA" if use_dora else "LoRA",
+    )
 
     # Pass 3: replace modules_to_save tensors.
     applied_direct = 0
