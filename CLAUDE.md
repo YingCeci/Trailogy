@@ -35,8 +35,7 @@ the wrong-kind model and loads the right one before streaming.
   Repo was renamed from `hikeCompanion` to `Trailogy` mid-development;
   Xcode target name keeps the legacy `HikeCompanion` to avoid churning
   bundle ID + provisioning (user-facing display name is "Trailogy").
-- Local path: `` (local clone
-  directory not renamed; cosmetic only)
+- Local clone directory not renamed from `hikeCompanion`; cosmetic only.
 - Owner intent: Billy Li (`lijuncheng16`); collaborator: Ying Wang (`YingCeci`).
   Bundle ID is `com.lijuncheng16.HikeCompanion`.
 
