@@ -1,0 +1,110 @@
+# data_mix/configs/mix-50k-v3.yaml
+#
+# Third iteration of the local NA-Plantae mix. Differences vs
+# mix-50k-v2.yaml (the predecessor; see also the design doc
+# alongside this config):
+#
+#   bucket          v2 train  v3 train   share v2 -> v3
+#   na_plantae      30,000    32,500     60 % -> 65 %
+#   llava            7,500     5,000     15 % -> 10 %    (budget source)
+#   smoltalk         7,500     7,500     15 % -> 15 %    (mmlu defender, absolute count held)
+#   negative         5,000     5,000     10 % -> 10 %
+#   offline_qa      ~38       ~38        out of ratio (unchanged)
+#
+# Total train rows ~ 50,038 — same as v2. Holding total constant
+# isolates "more plant + extended drop-list" as the v3 delta vs v2;
+# a future v4 can ablate volume bumps or per-class capping on top.
+#
+# Validation is FROZEN from the v1 build (same as v2, via
+# ``freeze_val_from``) so eval_<key>_loss curves stay byte-comparable
+# across the v1 -> v2 -> v3 boundary.
+#
+# Sampler-side changes:
+#
+#   * ``train_exclude_slugs`` grows from 19 to 29 NA-Plantae classes.
+#     The 19 v2 drops are preserved verbatim. 10 new drops were
+#     selected from the 5-run confusion analysis on v2 — only pairs
+#     that (a) hit at 4 or 5 of the 5 runs' plant-peaks AND (b) are
+#     NOT true botanical sister-taxa (vetches, milkweeds, ragweeds,
+#     poison-ivies are visually genuinely similar — removing one
+#     does not help the other and only shrinks honest eval coverage).
+#
+#   * ``train_temperature: 0.75``: unchanged from v2.
+#
+#   * Sampler implementation (Efraimidis-Spirakis weighted reservoir,
+#     no-replacement when n_train <= pool size) is unchanged from v2.
+#     v3 pool post-drop is ~50,200 rows; target 32,500 stays well
+#     inside the no-replacement regime.
+
+seed: 42
+source: llava
+
+# Freeze the trainer-side val files from the v1 mix output. Resolved
+# against TRAILOGY_DATA_ROOT (the default external data root). Same
+# value as v2 — keeps val byte-identical across v1 / v2 / v3 builds.
+freeze_val_from: "mix-50k"
+
+na_plantae:
+  train: 32500
+  val: 1500            # ignored when freeze_val_from is set
+  train_jsonl: "../data/inaturalist_na_plantae_prepared/train.jsonl"
+  val_jsonl:   "../data/inaturalist_na_plantae_prepared/val.jsonl"
+  train_temperature: 0.75
+  # Slugs removed from the train pool BEFORE sampling. Val is
+  # untouched so eval_plant_loss + the frozen 300-class test set still
+  # measure drift on these classes (recovery on them = generalisation).
+  train_exclude_slugs:
+    # --- v2 drops (preserved verbatim) ---
+    # 8 systematic-shared-drift victims from D (r8/r16 v1mix 14k eval)
+    - red_osier_dogwood
+    - cutleaf_coneflower
+    - bear_s_foot
+    - giant_reed
+    - catnip
+    - texas_mountain_laurel
+    - coastal_goldenbush
+    - buckbrush
+    # their confusion partners (the wrong-but-confident predictions @ 14k)
+    - american_black_elderberry
+    - cut_leaved_toothwort
+    - bigleaf_maple
+    - buttonbush
+    - white_vervain
+    - texas_persimmon
+    - gum_bumelia
+    - deerweed
+    - golden_yarrow
+    - yaupon_holly
+    - jojoba
+    # --- v3 new drops (10 classes; from D3 5-run plant-peak confusion table) ---
+    # Selection rule: only pairs hitting 4-5 of 5 runs' plant-peaks
+    # that are NOT true sister taxa. Sister-taxa pairs (Toxicodendron,
+    # Vicia, Heterotheca, Asclepias, Ambrosia) are deliberately
+    # PRESERVED in the train pool — dropping a sister does not break
+    # the attractor and only removes honest eval coverage.
+    - roughleaf_dogwood          # partner of red_osier_dogwood (same genus, name confusion)
+    - basswood                   # confused with american_tuliptree (both large-leaf magnoliid-like)
+    - broadleaf_arrowhead        # confused with spatterdock (both aquatic broad-leaf, not sister)
+    - virginia_creeper           # confused with wild_yam (both vines, compound leaves)
+    - groundsel_tree             # confused with sorrelvine (visual only, different families)
+    - callery_pear               # confused with sugar_hackberry (both small-leaf woody)
+    - red_huckleberry            # confused with black_locust (both shrubs w/ red accents)
+    - slender_stinging_nettle    # partner of catnip (mint+nettle: square stem, opposite leaves)
+    - giant_ragweed              # partner of cutleaf_coneflower (both Asteraceae composites, name overlap)
+    - carolina_buckthorn         # confused with coffeeberry (both Rhamnaceae, borderline; kept as visual-only)
+
+llava:
+  train: 5000
+  val:   750           # ignored when freeze_val_from is set
+
+smoltalk:
+  train: 7500
+  val:   375           # ignored when freeze_val_from is set
+
+negative:
+  train: 5000
+  val:   250           # ignored when freeze_val_from is set
+
+offline_qa:
+  path: "assets/data_offline_qa/offline_qa.json"
+  val_ratio: 0.1       # ignored when freeze_val_from is set
